@@ -1,0 +1,84 @@
+plugins {
+    id 'java'
+    id("xyz.jpenilla.run-paper") version "2.3.1"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.21"
+    id("com.gradleup.shadow") version "9.4.2"
+}
+
+group = 'com.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+
+    maven {
+        url = "https://maven.enginehub.org/repo"
+    }
+
+    maven {
+        name = "papermc-repo"
+        url = "https://repo.papermc.io/repository/maven-public/"
+    }
+    maven { url = uri("https://repo.codemc.io/repository/maven-releases/") }
+    maven { url = uri("https://repo.codemc.io/repository/maven-snapshots/") }
+}
+
+dependencies {
+    paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
+    implementation("com.github.retrooper:packetevents-spigot:2.13.0")
+    implementation ("org.json:json:20250517")
+    implementation ("org.xerial:sqlite-jdbc:3.45.1.0")
+    compileOnly ("com.sk89q.worldguard:worldguard-bukkit:7.0.17")
+    implementation ("com.googlecode.json-simple:json-simple:1.1.1")
+    // compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+}
+
+shadowJar {
+    relocate 'com.github.retrooper.packetevents', 'com.example.protectTheCore.libs.packetevents'
+    relocate 'org.json', 'com.example.protectTheCore.libs.json'
+    relocate 'com.googlecode.json-simple', 'com.example.protectTheCore.libs.json-simple'
+}
+
+tasks {
+    runServer {
+        // Configure the Minecraft version for our task.
+        // This is the only required configuration besides applying the plugin.
+        // Your plugin's jar (or shadowJar if present) will be used automatically.
+        minecraftVersion("1.21.11")
+    }
+}
+
+def targetJavaVersion = 21
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        options.release.set(targetJavaVersion)
+    }
+}
+
+tasks.assemble {
+    dependsOn("reobfJar")
+}
+
+tasks.build {
+    dependsOn("shadowJar")
+}
+
+processResources {
+    def props = [version: version]
+    inputs.properties props
+    filteringCharset 'UTF-8'
+    filesMatching('paper-plugin.yml') {
+        expand props
+    }
+}

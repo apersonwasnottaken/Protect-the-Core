@@ -1,0 +1,12 @@
+name: ProtectTheCore
+version: '1.0-SNAPSHOT'
+main: com.example.protectTheCore.ProtectTheCore
+api-version: '1.21.11'
+dependencies:
+  server:
+    WorldGuard:
+      load: BEFORE
+      required: false
+    packetevents:
+      load: BEFORE
+      required: true

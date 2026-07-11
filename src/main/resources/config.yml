@@ -1,0 +1,31 @@
+config:
+  overworld:
+    enabled: true
+    border: 1000
+    seed: 0
+  nether:
+    enabled: true
+    border: 1000
+    seed: 0
+  the_end:
+    enabled: true
+    border: 1000
+    seed: 0
+    dragon_fight: false
+    end_shop: true
+    shop_spawned: false
+  buffer_size: 50
+enabled-worlds:
+  - ptcoverworld
+game:
+  duration: 604800
+  time_end: ""
+  wall_mode: X
+  zones_enabled: true
+  started: false
+  restrict_players_to_overworld: false
+event:
+  awakening:
+    started: false
+
+
