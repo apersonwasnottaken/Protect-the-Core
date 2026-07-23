@@ -1,16 +1,23 @@
 package com.example.protectTheCore.helper;
 
+import com.example.protectTheCore.ProtectTheCore;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
-
-import static com.example.protectTheCore.ProtectTheCore.plugin;
+import org.jetbrains.annotations.NotNull;
 
 public class WorldGenerator {
-    public static World createOverworld(Integer seed, Integer worldBorder) {
+
+    private final ProtectTheCore plugin;
+
+    public WorldGenerator(@NotNull ProtectTheCore plugin) {
+        this.plugin = plugin;
+    }
+
+    public World createOverworld(Integer seed, Integer worldBorder) {
         NamespacedKey overworldKey = new NamespacedKey(plugin, "ptcoverworld");
-        WorldCreator creator = WorldCreator.ofKey(overworldKey).seed(seed).environment(World.Environment.NORMAL);
+        WorldCreator creator = new WorldCreator(overworldKey).seed(seed).environment(World.Environment.NORMAL);
         World ptcOverworld = creator.createWorld();
         if (ptcOverworld != null) {
             WorldBorder overworldBorder = ptcOverworld.getWorldBorder();
@@ -19,9 +26,9 @@ public class WorldGenerator {
         }
         return ptcOverworld;
     }
-    public static World createNether(Integer seed, Integer worldBorder) {
+    public World createNether(Integer seed, Integer worldBorder) {
         NamespacedKey netherKey = new NamespacedKey(plugin, "ptcnether");
-        WorldCreator creator = WorldCreator.ofKey(netherKey).seed(seed).environment(World.Environment.NETHER);
+        WorldCreator creator = new WorldCreator(netherKey).seed(seed).environment(World.Environment.NETHER);
         World ptcNether = creator.createWorld();
         if (ptcNether != null) {
             WorldBorder netherBorder = ptcNether.getWorldBorder();
@@ -30,10 +37,16 @@ public class WorldGenerator {
         }
         return ptcNether;
     }
-    public static World createTheEnd(Integer seed, Integer worldBorder) {
+    public World createTheEnd(Integer seed, Integer worldBorder) {
         NamespacedKey theEndKey = new NamespacedKey(plugin, "ptctheend");
-        WorldCreator creator = WorldCreator.ofKey(theEndKey).seed(seed).environment(World.Environment.THE_END);
+
+        WorldCreator creator = new WorldCreator(theEndKey)
+                .seed(seed)
+                .environment(World.Environment.THE_END);
+
         World ptcTheEnd = creator.createWorld();
+        ptcTheEnd.setSpawnLocation(0, ptcTheEnd.getHighestBlockYAt(0, -5) + 1, -5, 180);
+
         if (ptcTheEnd != null) {
             WorldBorder theEndBorder = ptcTheEnd.getWorldBorder();
             theEndBorder.setSize(worldBorder * 2);

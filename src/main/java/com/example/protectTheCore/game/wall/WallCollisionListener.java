@@ -1,5 +1,7 @@
 package com.example.protectTheCore.game.wall;
 
+import com.example.protectTheCore.ProtectTheCore;
+import com.example.protectTheCore.game.ProtectTheCoreGame;
 import com.example.protectTheCore.helper.HelperFunctions;
 import io.papermc.paper.event.entity.EntityMoveEvent;
 import net.kyori.adventure.text.Component;
@@ -15,15 +17,16 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
-
-import static com.example.protectTheCore.ProtectTheCore.plugin;
+import org.jetbrains.annotations.NotNull;
 
 public class WallCollisionListener implements Listener {
 
     private final WallManager wallManager;
+    private final ProtectTheCore plugin;
 
-    public WallCollisionListener(WallManager wallManager) {
+    public WallCollisionListener(@NotNull ProtectTheCore plugin, @NotNull WallManager wallManager) {
         this.wallManager = wallManager;
+        this.plugin = plugin;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)

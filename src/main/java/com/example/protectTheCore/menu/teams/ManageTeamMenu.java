@@ -1,11 +1,13 @@
 package com.example.protectTheCore.menu.teams;
 
 import com.destroystokyo.paper.profile.PlayerProfile;
+import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.core.Teams;
 import com.example.protectTheCore.menu.CustomMenuHolder;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -21,19 +23,29 @@ import java.util.ArrayList;
 import java.util.Objects;
 import java.util.UUID;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
 
 public class ManageTeamMenu implements CustomMenuHolder {
 
     private int teamIdx = 0;
+    private final ProtectTheCore plugin;
+    private final ComponentLogger logger;
+    private final TeamCreationMenu teamCreationMenu;
+    private final Teams teams;
+
+    public ManageTeamMenu(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger, @NotNull TeamCreationMenu teamCreationMenu, @NotNull Teams teams) {
+        this.plugin = plugin;
+        this.logger = logger;
+        this.teamCreationMenu = teamCreationMenu;
+        this.teams = teams;
+    }
 
     @Override
     public @NotNull Inventory getInventory() {
         Inventory inventory = plugin.getServer().createInventory(this, 36, Component.text("ᴍᴀɴᴀɢᴇ ᴛᴇᴀᴍ"));
         try {
-            JSONArray teamData = TeamCreationMenu.readTeamData();
+            JSONArray teamData = teamCreationMenu.readTeamData();
             JSONObject selectedTeam = (JSONObject) teamData.get(teamIdx);
-            setPreviousMaterial(TeamCreationMenu.getTeamColorsInt().indexOf(Integer.parseInt(selectedTeam.get("color").toString())));
+            setPreviousMaterial(teamCreationMenu.getTeamColorsInt().indexOf(Integer.parseInt(selectedTeam.get("color").toString())));
             setPvpStatus((Boolean) selectedTeam.get("pvp"));
             final int[] idx = {0};
             JSONArray members = (JSONArray) selectedTeam.get("members");
@@ -41,9 +53,9 @@ public class ManageTeamMenu implements CustomMenuHolder {
                 for (Object obj : members) {
                     ItemStack playerHead = ItemStack.of(Material.PLAYER_HEAD);
                     playerHead.editMeta(SkullMeta.class, meta -> {
-                        PlayerProfile profile = Bukkit.createProfile(UUID.fromString(((JSONObject) obj).get("uuid").toString()), ((JSONObject) obj).get("username").toString());
+                        PlayerProfile profile = plugin.getServer().createProfile(UUID.fromString(((JSONObject) obj).get("uuid").toString()), ((JSONObject) obj).get("username").toString());
                         profile.complete(true);
-                        meta.displayName(MiniMessage.miniMessage().deserialize("<italic:false><white>" + ((JSONObject) obj).get("username").toString() + "</white>" + (Objects.equals(Teams.getTeamLeader(teamIdx), ((JSONObject) obj).get("username").toString()) ? " <yellow><Leader></yellow>" : "")));
+                        meta.displayName(MiniMessage.miniMessage().deserialize("<italic:false><white>" + ((JSONObject) obj).get("username").toString() + "</white>" + (Objects.equals(teams.getTeamLeader(teamIdx), ((JSONObject) obj).get("username").toString()) ? " <yellow><Leader></yellow>" : "")));
                         meta.setPlayerProfile(profile);
                         ArrayList<Component> lore = new ArrayList<>();
                         lore.add(Component.text("Left-click to toggle team leader!", NamedTextColor.YELLOW).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE));
@@ -58,7 +70,7 @@ public class ManageTeamMenu implements CustomMenuHolder {
             addTeamMember.editMeta(meta -> meta.displayName(MiniMessage.miniMessage().deserialize("<italic:false><green>ᴀᴅᴅ ᴛᴇᴀᴍ ᴍᴇᴍʙᴇʀ</green>")));
             inventory.setItem(idx[0], addTeamMember);
 
-            TeamCreationMenu teamCreationMenu = new TeamCreationMenu();
+            TeamCreationMenu teamCreationMenu = new TeamCreationMenu(plugin, logger);
             teamCreationMenu.resetPreviousMaterial();
             ItemStack blankGrayStainedGlassPane = ItemStack.of(Material.GRAY_STAINED_GLASS_PANE);
             blankGrayStainedGlassPane.editMeta(meta -> meta.displayName(MiniMessage.miniMessage().deserialize("<italic:false>")));

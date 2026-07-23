@@ -1,5 +1,6 @@
 package com.example.protectTheCore.listeners;
 
+import com.example.protectTheCore.ProtectTheCore;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.event.EventHandler;
@@ -8,10 +9,15 @@ import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.persistence.PersistentDataType;
-
-import static com.example.protectTheCore.ProtectTheCore.plugin;
+import org.jetbrains.annotations.NotNull;
 
 public class AnvilFilterListener implements Listener {
+
+    private final ProtectTheCore plugin;
+
+    public AnvilFilterListener(@NotNull ProtectTheCore plugin) {
+        this.plugin = plugin;
+    }
 
     @EventHandler
     public void onAnvilPrepare(PrepareAnvilEvent event) {
@@ -37,8 +43,7 @@ public class AnvilFilterListener implements Listener {
         if (item.getEnchantments().containsKey(Enchantment.VANISHING_CURSE)) {
             return true;
         }
-        if (item.getItemMeta() instanceof EnchantmentStorageMeta) {
-            EnchantmentStorageMeta bookMeta = (EnchantmentStorageMeta) item.getItemMeta();
+        if (item.getItemMeta() instanceof EnchantmentStorageMeta bookMeta) {
             return bookMeta.hasStoredEnchant(Enchantment.VANISHING_CURSE);
         }
         return false;

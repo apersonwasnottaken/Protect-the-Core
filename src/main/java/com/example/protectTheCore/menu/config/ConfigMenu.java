@@ -13,7 +13,7 @@ public class ConfigMenu implements CustomMenuHolder {
 
     private final Inventory inventory;
 
-    public ConfigMenu(ProtectTheCore plugin) {
+    public ConfigMenu(@NotNull ProtectTheCore plugin) {
         this.inventory = plugin.getServer().createInventory(this, 36, Component.text("ᴄᴏɴꜰɪɢ"));
         // Items
         ItemStack overworldConfig = ItemStack.of(Material.GRASS_BLOCK);

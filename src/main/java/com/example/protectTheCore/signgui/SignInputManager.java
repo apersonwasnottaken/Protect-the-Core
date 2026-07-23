@@ -1,5 +1,6 @@
 package com.example.protectTheCore.signgui;
 
+import com.example.protectTheCore.ProtectTheCore;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
@@ -11,6 +12,7 @@ import org.bukkit.block.BlockState;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class SignInputManager extends PacketListenerAbstract {
 
-    private final Plugin plugin;
+    private final ProtectTheCore plugin;
 
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
 
@@ -37,7 +39,7 @@ public class SignInputManager extends PacketListenerAbstract {
         }
     }
 
-    public SignInputManager(Plugin plugin) {
+    public SignInputManager(@NotNull ProtectTheCore plugin) {
         this.plugin = plugin;
     }
     public void open(Player player, SignCallback callback) {
@@ -73,8 +75,6 @@ public class SignInputManager extends PacketListenerAbstract {
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
                 session.callback.onInput(player, lines);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

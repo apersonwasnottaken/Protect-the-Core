@@ -1,5 +1,6 @@
 package com.example.protectTheCore.game.events;
 
+import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.helper.HelperFunctions;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.*;
@@ -11,28 +12,34 @@ import org.bukkit.inventory.meta.CompassMeta;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 public class AwakeningEvent {
 
+    private ProtectTheCore plugin;
+
+    public AwakeningEvent(@NotNull ProtectTheCore plugin) {
+        this.plugin = plugin;
+    }
+
     @Nullable
-    public static Player getAssassin() {
+    public Player getAssassin() {
         return Bukkit.getPlayer("SummersCute");
     }
 
     @Nullable
-    public static Player getAssassin(String playerName) {
+    public Player getAssassin(String playerName) {
         return Bukkit.getPlayer(playerName);
     }
 
-    public static void fillAssassinGear(Player player, boolean includeTotems) {
+    public void fillAssassinGear(Player player, boolean includeTotems) {
         ItemStack[] items = new ItemStack[41];
 
+        // Manually defining all the items
         ItemStack shield = ItemStack.of(Material.SHIELD);
         shield.editMeta(meta -> {
             meta.addEnchant(Enchantment.UNBREAKING, 5, true);
@@ -183,14 +190,14 @@ public class AwakeningEvent {
         player.getInventory().setContents(items);
     }
 
-    public static void initEvent() {
+    public void initEvent() {
         if (getAssassin() == null) return;
         for (Player player : Bukkit.getOnlinePlayers()) {
             player.sendMessage(MiniMessage.miniMessage().deserialize(""));
         }
     }
 
-    public static ItemStack getPlayerTracker(Player source) {
+    public ItemStack getPlayerTracker(Player source) {
         ItemStack playerTracker = ItemStack.of(Material.COMPASS);
         playerTracker.editMeta(meta -> {
             meta.setEnchantmentGlintOverride(true);
@@ -203,29 +210,29 @@ public class AwakeningEvent {
         return playerTracker;
     }
 
-    public static int getPlayerTrackerSlotFromPlayer(Player player) {
+    public int getPlayerTrackerSlotFromPlayer(Player player) {
         for(int i = 0; i < player.getInventory().getContents().length; i++) {
             if (player.getInventory().getContents()[i].getPersistentDataContainer().has(new NamespacedKey(plugin, "player_tracker"))) return i;
         }
         return -1;
     }
 
-    public static void awakeningEventLoop(boolean alreadyStarted) {
+    public void awakeningEventLoop(boolean alreadyStarted) {
         if (!alreadyStarted) initEvent();
         new BukkitRunnable() {
             int timer = 0;
             @Override
             public void run() {
                 if (getAssassin() == null) return;
-                getAssassin().displayName(MiniMessage.miniMessage().deserialize("<obfuscated><bold><dark_red>Assassin"));
-                getAssassin().playerListName(MiniMessage.miniMessage().deserialize("<obfuscated><bold><dark_red>Assassin"));
+                getAssassin().displayName(MiniMessage.miniMessage().deserialize("<obfuscated><bold><dark_red>Assassin<reset>"));
+                getAssassin().playerListName(MiniMessage.miniMessage().deserialize("<obfuscated><bold><dark_red>Assassin<reset>"));
                 ItemStack playerTracker = getAssassin().getInventory().getItem(getPlayerTrackerSlotFromPlayer(getAssassin()));
                 if (playerTracker != null) {
                     playerTracker.editMeta(meta -> {
                         CompassMeta compassMeta = (CompassMeta) meta;
                         compassMeta.setLodestone(HelperFunctions.getNearestPlayer(getAssassin()).getLocation());
                     });
-                    if (getPlayerTrackerSlotFromPlayer(getAssassin()) >= 0) {
+                    if (getPlayerTrackerSlotFromPlayer(Objects.requireNonNull(getAssassin())) >= 0) {
                         Objects.requireNonNull(getAssassin()).getInventory().setItem(getPlayerTrackerSlotFromPlayer(getAssassin()), playerTracker);
                     }
                 }

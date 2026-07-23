@@ -3,8 +3,9 @@ package com.example.protectTheCore.listeners;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.core.Teams;
-import com.example.protectTheCore.helper.WorldGenerator;
 import com.example.protectTheCore.game.supplydrops.SupplyDrop;
+import com.example.protectTheCore.helper.HelperFunctions;
+import com.example.protectTheCore.helper.WorldGenerator;
 import com.example.protectTheCore.menu.*;
 import com.example.protectTheCore.menu.config.ConfigMenu;
 import com.example.protectTheCore.menu.config.GameConfigMenu;
@@ -17,13 +18,16 @@ import com.example.protectTheCore.menu.supplydrops.SupplyDropMenu;
 import com.example.protectTheCore.menu.teams.ManageTeamMenu;
 import com.example.protectTheCore.menu.teams.TeamCreationMenu;
 import com.example.protectTheCore.menu.teams.TeamsMenu;
+import com.example.protectTheCore.signgui.SignInputManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.apache.commons.io.FileUtils;
 import org.bukkit.*;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -31,8 +35,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
-import org.json.JSONArray;
-import org.json.simple.JSONObject;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,12 +45,48 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.example.protectTheCore.ProtectTheCore.*;
-import static com.example.protectTheCore.core.Teams.getTeamIndexFromPlayer;
-import static org.bukkit.Bukkit.getOfflinePlayer;
-import static org.bukkit.Bukkit.getWorld;
-
 public class MenusEventListener implements Listener {
+
+    private final ProtectTheCore plugin;
+    private final FileConfiguration config;
+    private final ComponentLogger logger;
+    private final SignInputManager signInputManager;
+    private final SupplyDrop supplyDrop;
+    private final Teams teams;
+    private final OverworldConfigMenu overworldConfigMenu;
+    private final NetherConfigMenu netherConfigMenu;
+    private final TheEndConfigMenu theEndConfigMenu;
+    private final WorldGenerator worldGenerator;
+    private final ConfigMenu configMenu;
+    private final GameConfigMenu gameConfigMenu;
+    private final TeamsMenu teamsMenu;
+    private final TeamCreationMenu teamCreationMenu;
+    private final ManageTeamMenu manageTeamMenu;
+    private final SupplyDropMenu supplyDropMenu;
+    private final SupplyDropCreationMenu supplyDropCreationMenu;
+    private final ManageSupplyDropMenu manageSupplyDropMenu;
+
+    public MenusEventListener(@NotNull ProtectTheCore plugin, @NotNull FileConfiguration config, @NotNull ComponentLogger logger, @NotNull SignInputManager signInputManager, @NotNull SupplyDrop supplyDrop, @NotNull Teams teams, @NotNull OverworldConfigMenu overworldConfigMenu, @NotNull NetherConfigMenu netherConfigMenu, @NotNull TheEndConfigMenu theEndConfigMenu, @NotNull WorldGenerator worldGenerator, @NotNull ConfigMenu configMenu, @NotNull GameConfigMenu gameConfigMenu, @NotNull TeamCreationMenu teamCreationMenu, @NotNull TeamsMenu teamsMenu, @NotNull ManageTeamMenu manageTeamMenu, @NotNull SupplyDropMenu supplyDropMenu, @NotNull SupplyDropCreationMenu supplyDropCreationMenu, @NotNull ManageSupplyDropMenu manageSupplyDropMenu) {
+        this.plugin = plugin;
+        this.config = config;
+        this.logger = logger;
+        this.signInputManager = signInputManager;
+        this.supplyDrop = supplyDrop;
+        this.teams = teams;
+        this.overworldConfigMenu = overworldConfigMenu;
+        this.netherConfigMenu = netherConfigMenu;
+        this.theEndConfigMenu = theEndConfigMenu;
+        this.worldGenerator = worldGenerator;
+        this.configMenu = configMenu;
+        this.gameConfigMenu = gameConfigMenu;
+        this.teamsMenu = teamsMenu;
+        this.teamCreationMenu = teamCreationMenu;
+        this.manageTeamMenu = manageTeamMenu;
+        this.supplyDropMenu = supplyDropMenu;
+        this.supplyDropCreationMenu = supplyDropCreationMenu;
+        this.manageSupplyDropMenu = manageSupplyDropMenu;
+    }
+    
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) throws Exception {
         Inventory inventory = event.getClickedInventory();
@@ -77,74 +116,73 @@ public class MenusEventListener implements Listener {
         if (clicked == null) {
             return;
         }
-        if (inventory.getHolder() instanceof ConfigMenu menu) {
-            handleConfigMenu(event, menu, player, clicked);
+        if (inventory.getHolder() instanceof ConfigMenu) {
+            handleConfigMenu(event, player, clicked, overworldConfigMenu, netherConfigMenu, theEndConfigMenu, worldGenerator, gameConfigMenu);
         }
-        if (inventory.getHolder() instanceof OverworldConfigMenu overworldConfigMenu || inventory.getHolder() instanceof NetherConfigMenu netherConfigMenu || inventory.getHolder() instanceof TheEndConfigMenu theEndConfigMenu) { // Menus are basically identical
-            handleDimensionsConfigMenu(event, new OverworldConfigMenu(plugin), new NetherConfigMenu(plugin), new TheEndConfigMenu(plugin), player, clicked, inventory);
+        if (inventory.getHolder() instanceof OverworldConfigMenu || inventory.getHolder() instanceof NetherConfigMenu || inventory.getHolder() instanceof TheEndConfigMenu) { // Menus are basically identical
+            handleDimensionsConfigMenu(event, overworldConfigMenu, netherConfigMenu, theEndConfigMenu, player, clicked, inventory, configMenu);
         }
-        if (inventory.getHolder() instanceof TeamsMenu teamsMenu) {
-            handleTeamsMenu(event, teamsMenu, player, clicked);
+        if (inventory.getHolder() instanceof TeamsMenu) {
+            handleTeamsMenu(event, teamsMenu, player, clicked, teamCreationMenu, manageTeamMenu);
         }
-        if (inventory.getHolder() instanceof TeamCreationMenu teamCreationMenu) {
-            handleTeamCreationMenu(event, teamCreationMenu, player, clicked);
+        if (inventory.getHolder() instanceof TeamCreationMenu) {
+            handleTeamCreationMenu(event, teamCreationMenu, player, clicked, teamsMenu);
         }
-        if (inventory.getHolder() instanceof ManageTeamMenu manageTeamMenu) {
-            handleManageTeamsMenu(event, manageTeamMenu, player, clicked);
+        if (inventory.getHolder() instanceof ManageTeamMenu) {
+            handleManageTeamsMenu(event, manageTeamMenu, player, clicked, teamsMenu, teamCreationMenu);
         }
-        if (inventory.getHolder() instanceof GameConfigMenu gameConfigMenu) {
+        if (inventory.getHolder() instanceof GameConfigMenu) {
             handleGameConfigMenu(event, gameConfigMenu, player, clicked);
         }
-        if (inventory.getHolder() instanceof SupplyDropMenu supplyDropMenu) {
-            handleSupplyDropMenu(event, supplyDropMenu, player, clicked);
+        if (inventory.getHolder() instanceof SupplyDropMenu) {
+            handleSupplyDropMenu(event, supplyDropMenu, player, clicked, supplyDropCreationMenu, manageSupplyDropMenu);
         }
-        if (inventory.getHolder() instanceof SupplyDropCreationMenu supplyDropCreationMenu) {
-            handleSupplyDropCreationMenu(event, supplyDropCreationMenu, player, clicked);
+        if (inventory.getHolder() instanceof SupplyDropCreationMenu) {
+            handleSupplyDropCreationMenu(event, supplyDropCreationMenu, player, clicked, supplyDropMenu);
         }
-        if (inventory.getHolder() instanceof ManageSupplyDropMenu manageSupplyDropMenu) {
-            handleManageSupplyDropMenu(event, manageSupplyDropMenu, player, clicked);
+        if (inventory.getHolder() instanceof ManageSupplyDropMenu) {
+            handleManageSupplyDropMenu(event, manageSupplyDropMenu, player, clicked, supplyDropMenu);
+        }
+        if (HelperFunctions.getDebugMode(player)) {
+            player.sendMessage(MiniMessage.miniMessage().deserialize(clicked + " clicked!"));
         }
     }
 
-    private void handleConfigMenu(InventoryClickEvent event, ConfigMenu menu, Player player, ItemStack clicked) {
+    private void handleConfigMenu(InventoryClickEvent event, Player player, ItemStack clicked, OverworldConfigMenu overworldConfigMenu, NetherConfigMenu netherConfigMenu, TheEndConfigMenu theEndConfigMenu, WorldGenerator worldGenerator, GameConfigMenu gameConfigMenu) {
         if (clicked.getType() == Material.GRASS_BLOCK) {
             // Overworld Config
-            OverworldConfigMenu overworldConfigMenu = new OverworldConfigMenu(plugin);
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(overworldConfigMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(overworldConfigMenu.getInventory()));
         } else if (clicked.getType() == Material.NETHERRACK) {
             // Nether Config
-            NetherConfigMenu netherConfigMenu = new NetherConfigMenu(plugin);
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(netherConfigMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(netherConfigMenu.getInventory()));
         } else if (clicked.getType() == Material.END_STONE) {
             // The end Config
-            TheEndConfigMenu theEndConfigMenu = new TheEndConfigMenu(plugin);
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(theEndConfigMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(theEndConfigMenu.getInventory()));
         } else if (clicked.getType() == Material.LIME_CONCRETE) {
-            WorldGenerator generator = new WorldGenerator();
             if (config.getBoolean("config.overworld.enabled")) {
-                generator.createOverworld(config.getInt("config.overworld.seed"), config.getInt("config.overworld.border"));
+                worldGenerator.createOverworld(config.getInt("config.overworld.seed"), config.getInt("config.overworld.border"));
                 player.sendMessage(Component.text("Generating Overworld...", TextColor.color(255, 255, 0)));
             }
             if (config.getBoolean("config.nether.enabled")) {
-                generator.createNether(config.getInt("config.nether.seed"), config.getInt("config.nether.border"));
+                worldGenerator.createNether(config.getInt("config.nether.seed"), config.getInt("config.nether.border"));
                 player.sendMessage(Component.text("Generating Nether...", TextColor.color(255, 255, 0)));
             }
             if (config.getBoolean("config.the_end.enabled")) {
-                generator.createTheEnd(config.getInt("config.the_end.seed"), config.getInt("config.the_end.border"));
+                worldGenerator.createTheEnd(config.getInt("config.the_end.seed"), config.getInt("config.the_end.border"));
                 player.sendMessage(Component.text("Generating The End...", NamedTextColor.YELLOW));
             }
         } else if (clicked.getType() == Material.RED_CONCRETE) {
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            World world = getWorld("ptcoverworld");
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            World world = plugin.getServer().getWorld("ptcoverworld");
             assert world != null;
             for (Player player1 : world.getPlayers()) {
-                player1.teleport(Objects.requireNonNull(Objects.requireNonNull(getWorld("overworld")).getSpawnLocation()));
+                player1.teleport(Objects.requireNonNull(Objects.requireNonNull(plugin.getServer().getWorld("overworld")).getSpawnLocation()));
                 player1.sendMessage(Component.text("The world is being deleted, so you were teleported back to the overworld.", NamedTextColor.GREEN));
             }
-            boolean isUnloaded = Bukkit.getServer().unloadWorld(world, false);
+            boolean isUnloaded = plugin.getServer().unloadWorld(world, false);
             if (!isUnloaded) {
                 event.getView().getPlayer().sendMessage(Component.text("Failed to unload the world: " + world.getName(), NamedTextColor.RED));
                 return;
@@ -155,15 +193,15 @@ public class MenusEventListener implements Listener {
                 event.getView().getPlayer().sendMessage(Component.text("Successfully deleted world: " + world.getName(), NamedTextColor.GREEN));
             } catch (IOException e) {
                 event.getView().getPlayer().sendMessage(Component.text("Could not delete the world folder for " + world.getName(), NamedTextColor.RED));
-                ProtectTheCore.logger.error(Component.text("An error occurred while deleting the world '" + world.getName() + "'.\n" + e, NamedTextColor.RED));
+                logger.error(Component.text("An error occurred while deleting the world '" + world.getName() + "'.\n" + e, NamedTextColor.RED));
             }
-            world = getWorld("ptcnether");
+            world = plugin.getServer().getWorld("ptcnether");
             assert world != null;
             for (Player player1 : world.getPlayers()) {
-                player1.teleport(Objects.requireNonNull(Objects.requireNonNull(getWorld("overworld")).getSpawnLocation()));
+                player1.teleport(Objects.requireNonNull(Objects.requireNonNull(plugin.getServer().getWorld("overworld")).getSpawnLocation()));
                 player1.sendMessage(Component.text("The world is being deleted, so you were teleported back to the overworld.", NamedTextColor.GREEN));
             }
-            isUnloaded = Bukkit.getServer().unloadWorld(world, false);
+            isUnloaded = plugin.getServer().unloadWorld(world, false);
             if (!isUnloaded) {
                 event.getView().getPlayer().sendMessage(Component.text("Failed to unload the world: " + world.getName(), NamedTextColor.RED));
                 return;
@@ -174,15 +212,15 @@ public class MenusEventListener implements Listener {
                 event.getView().getPlayer().sendMessage(Component.text("Successfully deleted world: " + world.getName(), NamedTextColor.GREEN));
             } catch (IOException e) {
                 event.getView().getPlayer().sendMessage(Component.text("Could not delete the world folder for " + world.getName(), TextColor.color(255, 0, 0)));
-                ProtectTheCore.logger.error(Component.text("An error occurred while deleting the world '" + world.getName() + "'.\n" + e, NamedTextColor.RED));
+                logger.error(Component.text("An error occurred while deleting the world '" + world.getName() + "'.\n" + e, NamedTextColor.RED));
             }
-            world = getWorld("ptctheend");
+            world = plugin.getServer().getWorld("ptctheend");
             assert world != null;
             for (Player player1 : world.getPlayers()) {
-                player1.teleport(Objects.requireNonNull(Objects.requireNonNull(getWorld("overworld")).getSpawnLocation()));
+                player1.teleport(Objects.requireNonNull(Objects.requireNonNull(plugin.getServer().getWorld("overworld")).getSpawnLocation()));
                 player1.sendMessage(Component.text("The world is being deleted, so you were teleported back to the overworld.", TextColor.color(0, 255, 0)));
             }
-            isUnloaded = Bukkit.getServer().unloadWorld(world, false);
+            isUnloaded = plugin.getServer().unloadWorld(world, false);
             if (!isUnloaded) {
                 event.getView().getPlayer().sendMessage(Component.text("Failed to unload the world: " + world.getName(), TextColor.color(255, 0, 0)));
                 return;
@@ -193,24 +231,22 @@ public class MenusEventListener implements Listener {
                 event.getView().getPlayer().sendMessage(Component.text("Successfully deleted world: " + world.getName(), TextColor.color(0, 255, 0)));
             } catch (IOException e) {
                 event.getView().getPlayer().sendMessage(Component.text("Could not delete the world folder for " + world.getName(), TextColor.color(255, 0, 0)));
-                ProtectTheCore.logger.error(Component.text("An error occurred while deleting the world '" + world.getName() + "'.\n" + e, NamedTextColor.RED));
+                logger.error(Component.text("An error occurred while deleting the world '" + world.getName() + "'.\n" + e, NamedTextColor.RED));
             }
         } else if (clicked.getType() == Material.CRAFTING_TABLE) {
-            GameConfigMenu gameConfigMenu = new GameConfigMenu(plugin);
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(gameConfigMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(gameConfigMenu.getInventory()));
         }
     }
 
-    private void handleDimensionsConfigMenu(InventoryClickEvent event, OverworldConfigMenu overworldConfigMenu, NetherConfigMenu netherConfigMenu, TheEndConfigMenu theEndConfigMenu, Player player, ItemStack clicked, Inventory inventory) {
+    private void handleDimensionsConfigMenu(InventoryClickEvent event, OverworldConfigMenu overworldConfigMenu, NetherConfigMenu netherConfigMenu, TheEndConfigMenu theEndConfigMenu, Player player, ItemStack clicked, Inventory inventory, ConfigMenu configMenu) {
         if (clicked.getType() == Material.ARROW) {
-            ConfigMenu configMenu = new ConfigMenu(plugin);
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(configMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(configMenu.getInventory()));
         } else if (clicked.getType() == Material.BARRIER) {
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
         } else if (clicked.getType() == Material.OAK_SIGN) {
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
             signInputManager.open(player, (p, lines) -> {
                 String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
                 try {
@@ -222,15 +258,15 @@ public class MenusEventListener implements Listener {
                     }
                     if (inventory.getHolder() instanceof OverworldConfigMenu) {
                         overworldConfigMenu.setSeed(seed);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(overworldConfigMenu.getInventory()));
+                        plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(overworldConfigMenu.getInventory()));
                     }
                     if (inventory.getHolder() instanceof NetherConfigMenu) {
                         netherConfigMenu.setSeed(seed);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(netherConfigMenu.getInventory()));
+                        plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(netherConfigMenu.getInventory()));
                     }
                     if (inventory.getHolder() instanceof TheEndConfigMenu) {
                         theEndConfigMenu.setSeed(seed);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(theEndConfigMenu.getInventory()));
+                        plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(theEndConfigMenu.getInventory()));
                     }
                 } catch (ClassCastException | NumberFormatException e) {
                     p.sendMessage(Component.text("Invalid number!", NamedTextColor.RED));
@@ -238,7 +274,7 @@ public class MenusEventListener implements Listener {
                 }
             });
         } else if (clicked.getType() == Material.ACACIA_SIGN) {
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
             signInputManager.open(player, (p, lines) -> {
                 String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
                 try {
@@ -248,15 +284,15 @@ public class MenusEventListener implements Listener {
                     } else {
                         if (inventory.getHolder() instanceof OverworldConfigMenu) {
                             overworldConfigMenu.setBorderSize(borderSize);
-                            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(overworldConfigMenu.getInventory()));
+                            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(overworldConfigMenu.getInventory()));
                         }
                         if (inventory.getHolder() instanceof NetherConfigMenu) {
                             netherConfigMenu.setBorderSize(borderSize);
-                            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(netherConfigMenu.getInventory()));
+                            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(netherConfigMenu.getInventory()));
                         }
                         if (inventory.getHolder() instanceof TheEndConfigMenu) {
                             theEndConfigMenu.setBorderSize(borderSize);
-                            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(theEndConfigMenu.getInventory()));
+                            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(theEndConfigMenu.getInventory()));
                         }
                     }
                 } catch (ClassCastException e) {
@@ -280,18 +316,19 @@ public class MenusEventListener implements Listener {
         if (clicked.getType() == Material.LIME_CONCRETE) {
             config.set("config.overworld.enabled", false);
             plugin.saveConfig();
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, overworldConfigMenu.getEnabledStateItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, overworldConfigMenu.getEnabledStateItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         } else if (clicked.getType() == Material.RED_CONCRETE) {
             config.set("config.overworld.enabled", true);
             plugin.saveConfig();
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, overworldConfigMenu.getEnabledStateItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, overworldConfigMenu.getEnabledStateItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
         plugin.saveConfig();
         try {
             config.save("./plugins/ProtectTheCore/config.yml");
         } catch (IOException e) {
+            HelperFunctions.sendErrorMessage(player, e);
             throw new RuntimeException(e);
         }
     }
@@ -300,16 +337,17 @@ public class MenusEventListener implements Listener {
         if (clicked.getType() == Material.LIME_CONCRETE) {
             config.set("config.nether.enabled", false);
             plugin.saveConfig();
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, netherConfigMenu.getEnabledStateItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, netherConfigMenu.getEnabledStateItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         } else if (clicked.getType() == Material.RED_CONCRETE) {
             config.set("config.nether.enabled", true);
             plugin.saveConfig();
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, netherConfigMenu.getEnabledStateItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, netherConfigMenu.getEnabledStateItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
             try {
                 config.save("./plugins/ProtectTheCore/config.yml");
             } catch (IOException e) {
+                HelperFunctions.sendErrorMessage(player, e);
                 throw new RuntimeException(e);
             }
         }
@@ -319,13 +357,13 @@ public class MenusEventListener implements Listener {
         if (clicked.getType() == Material.LIME_CONCRETE) {
             config.set("config.the_end.enabled", false);
             plugin.saveConfig();
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, theEndConfigMenu.getEnabledStateItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, theEndConfigMenu.getEnabledStateItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         } else if (clicked.getType() == Material.RED_CONCRETE) {
             config.set("config.the_end.enabled", true);
             plugin.saveConfig();
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, theEndConfigMenu.getEnabledStateItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(13, theEndConfigMenu.getEnabledStateItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
         try {
             config.save("./plugins/ProtectTheCore/config.yml");
@@ -334,11 +372,10 @@ public class MenusEventListener implements Listener {
         }
     }
 
-    private void handleTeamsMenu(InventoryClickEvent event, TeamsMenu teamsMenu, Player player, ItemStack clicked) throws Exception {
+    private void handleTeamsMenu(InventoryClickEvent event, TeamsMenu teamsMenu, Player player, ItemStack clicked, TeamCreationMenu teamCreationMenu, ManageTeamMenu manageTeamMenu) throws Exception {
         if (clicked.getType() == Material.LIME_DYE) {
-            TeamCreationMenu teamCreationMenu = new TeamCreationMenu();
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(teamCreationMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(teamCreationMenu.getInventory()));
         }
         if (
                 clicked.getType() == Material.RED_CONCRETE ||
@@ -361,19 +398,18 @@ public class MenusEventListener implements Listener {
         ) {
             // A team is clicked
             if (event.isLeftClick()) {
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                ManageTeamMenu manageTeamMenu = new ManageTeamMenu();
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
                 manageTeamMenu.setTeamIdx(event.getSlot());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
             } else if (event.isRightClick()) {
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                Teams.removeTeam(event.getSlot());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+                teams.removeTeam(event.getSlot());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
             }
         }
     }
 
-    private void handleTeamCreationMenu(InventoryClickEvent event, TeamCreationMenu teamCreationMenu, Player player, ItemStack clicked) {
+    private void handleTeamCreationMenu(InventoryClickEvent event, TeamCreationMenu teamCreationMenu, Player player, ItemStack clicked, TeamsMenu teamsMenu) {
         if (
                 clicked.getType() == Material.RED_DYE ||
                         clicked.getType() == Material.ORANGE_DYE ||
@@ -397,103 +433,100 @@ public class MenusEventListener implements Listener {
             } else if (event.isRightClick()) {
                 teamCreationMenu.decreasePreviousMaterial();
             }
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(3, teamCreationMenu.getTeamColorItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(3, teamCreationMenu.getTeamColorItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
         if (clicked.getType() == Material.IRON_SWORD) {
             teamCreationMenu.togglePvPStatus();
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(5, teamCreationMenu.getPvPStatusItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(5, teamCreationMenu.getPvPStatusItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
         if (clicked.getType() == Material.RED_CONCRETE) {
-            TeamsMenu teamsMenu = new TeamsMenu();
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
         }
         if (clicked.getType() == Material.OAK_SIGN) {
             signInputManager.open(player, (p, lines) -> {
                 String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
                 teamCreationMenu.setTeamName(input);
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(teamCreationMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(teamCreationMenu.getInventory()));
             });
         }
         if (clicked.getType() == Material.LIME_CONCRETE) {
             try {
-                Teams.createNewTeam(teamCreationMenu.getTeamName().isBlank() ? UUID.randomUUID().toString() : teamCreationMenu.getTeamName(), teamCreationMenu.getTeamColorInt(), teamCreationMenu.getPvPStatus());
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
+                teams.createNewTeam(teamCreationMenu.getTeamName().isBlank() ? UUID.randomUUID().toString() : teamCreationMenu.getTeamName(), teamCreationMenu.getTeamColorInt(), teamCreationMenu.getPvPStatus());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
                 player.sendMessage(Component.text("Team successfully created!", NamedTextColor.GREEN));
-                TeamsMenu teamsMenu = new TeamsMenu();
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
             } catch (Exception e) {
-                player.sendMessage(Component.text("An error occurred while creating the team. Please check the latest log for more info.", NamedTextColor.RED));
-                ProtectTheCore.logger.error(Component.text("An error occurred while making the team. The stacktrace is below: \n" + e, NamedTextColor.RED));
+                HelperFunctions.sendErrorMessage(player, e);
+                logger.error(Component.text("An error occurred while making the team. The stacktrace is below: \n" + e, NamedTextColor.RED));
             }
         }
     }
 
-    private void handleManageTeamsMenu(InventoryClickEvent event, ManageTeamMenu manageTeamMenu, Player player, ItemStack clicked) throws Exception {
+    private void handleManageTeamsMenu(InventoryClickEvent event, ManageTeamMenu manageTeamMenu, Player player, ItemStack clicked, TeamsMenu teamsMenu, TeamCreationMenu teamCreationMenu) throws Exception {
         if (clicked.getType() == Material.LIME_DYE) {
             signInputManager.open(player, (p, lines) -> {
                 String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
-                if (getTeamIndexFromPlayer(input) >= 0) {
+                if (teams.getTeamIndexFromPlayer(input) >= 0) {
                     p.sendMessage(Component.text("This player is already on another team!", NamedTextColor.RED));
                     return;
                 }
-                Teams.addTeamMember(manageTeamMenu.getTeamIdx(), input, getOfflinePlayer(input).getUniqueId());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
+                teams.addTeamMember(manageTeamMenu.getTeamIdx(), input, plugin.getServer().getOfflinePlayer(input).getUniqueId());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
             });
         }
         if (clicked.getType() == Material.PLAYER_HEAD) {
-            UUID playerUUID = UUID.fromString(Teams.getTeamsConfig().get(manageTeamMenu.getTeamIdx()).getJSONArray("members").getJSONObject(event.getSlot()).getString("uuid"));
+            UUID playerUUID = UUID.fromString(teams.getTeamsConfig().get(manageTeamMenu.getTeamIdx()).getJSONArray("members").getJSONObject(event.getSlot()).getString("uuid"));
             if (event.isLeftClick()) {
-                if (!Teams.getTeamLeader(manageTeamMenu.getTeamIdx()).isEmpty()) {
-                    if (!Teams.getTeamLeader(manageTeamMenu.getTeamIdx()).equals(Bukkit.getOfflinePlayer(playerUUID).getName())) {
+                if (!teams.getTeamLeader(manageTeamMenu.getTeamIdx()).isEmpty()) {
+                    if (!teams.getTeamLeader(manageTeamMenu.getTeamIdx()).equals(plugin.getServer().getOfflinePlayer(playerUUID).getName())) {
                         player.sendMessage(Component.text("There is already a team leader defined!"));
                         return;
                     }
                     else {
-                        Teams.removeTeamLeader(manageTeamMenu.getTeamIdx());
+                        teams.removeTeamLeader(manageTeamMenu.getTeamIdx());
                     }
                 }
                 else {
-                    Teams.setTeamLeader(manageTeamMenu.getTeamIdx(), Bukkit.getOfflinePlayer(playerUUID).getName());
+                    teams.setTeamLeader(manageTeamMenu.getTeamIdx(), plugin.getServer().getOfflinePlayer(playerUUID).getName());
                 }
                 ItemStack playerHead = ItemStack.of(Material.PLAYER_HEAD);
                 playerHead.editMeta(SkullMeta.class, meta -> {
-                    PlayerProfile profile = Bukkit.createProfile(playerUUID, Bukkit.getOfflinePlayer(playerUUID).getName());
+                    PlayerProfile profile = plugin.getServer().createProfile(playerUUID, plugin.getServer().getOfflinePlayer(playerUUID).getName());
                     profile.complete(true);
-                    meta.displayName(MiniMessage.miniMessage().deserialize("<italic:false><white>" + Bukkit.getOfflinePlayer(playerUUID).getName() + "</white>" + (Objects.equals(Teams.getTeamLeader(manageTeamMenu.getTeamIdx()), Bukkit.getOfflinePlayer(playerUUID).getName()) ? " <yellow><Leader></yellow>" : "")));
+                    meta.displayName(MiniMessage.miniMessage().deserialize("<italic:false><white>" + plugin.getServer().getOfflinePlayer(playerUUID).getName() + "</white>" + (Objects.equals(teams.getTeamLeader(manageTeamMenu.getTeamIdx()), plugin.getServer().getOfflinePlayer(playerUUID).getName()) ? " <yellow><Leader></yellow>" : "")));
                     meta.setPlayerProfile(profile);
                     ArrayList<Component> lore = new ArrayList<>();
                     lore.add(Component.text("Left-click to toggle team leader!", NamedTextColor.YELLOW).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE));
                     lore.add(Component.text("Right-click to remove!", NamedTextColor.AQUA).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE));
                     meta.lore(lore);
                 });
-                Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(event.getSlot(), playerHead));
-                Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(event.getSlot(), playerHead));
+                plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
             }
             else if (event.isRightClick()) {
-                Teams.removeTeamMember(manageTeamMenu.getTeamIdx(), playerUUID);
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
+                teams.removeTeamMember(manageTeamMenu.getTeamIdx(), playerUUID);
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
             }
         }
         if (clicked.getType() == Material.SPECTRAL_ARROW) {
-            TeamsMenu teamsMenu = new TeamsMenu();
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(teamsMenu.getInventory()));
         }
         if (clicked.getType() == Material.IRON_SWORD) {
             manageTeamMenu.togglePvPStatus();
-            Teams.setTeamPvPStatus(manageTeamMenu.getTeamIdx(), manageTeamMenu.getPvPStatus());
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(31, manageTeamMenu.getPvPStatusItem()));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            teams.setTeamPvPStatus(manageTeamMenu.getTeamIdx(), manageTeamMenu.getPvPStatus());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(31, manageTeamMenu.getPvPStatusItem()));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
         if (clicked.getType() == Material.OAK_SIGN) {
             signInputManager.open(player, (p, lines) -> {
                 String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
-                Teams.setTeamName(manageTeamMenu.getTeamIdx(), input);
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
+                teams.setTeamName(manageTeamMenu.getTeamIdx(), input);
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageTeamMenu.getInventory()));
             });
         }
         if (
@@ -519,10 +552,9 @@ public class MenusEventListener implements Listener {
             } else if (event.isRightClick()) {
                 manageTeamMenu.decreasePreviousMaterial();
             }
-            new TeamCreationMenu();
-            Teams.setTeamColor(manageTeamMenu.getTeamIdx(), TeamCreationMenu.getTeamColorsInt().get(manageTeamMenu.getPreviousMaterial()));
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(30, manageTeamMenu.getTeamColorItemConcretePowder(manageTeamMenu.getPreviousMaterial())));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            teams.setTeamColor(manageTeamMenu.getTeamIdx(), teamCreationMenu.getTeamColorsInt().get(manageTeamMenu.getPreviousMaterial()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(30, manageTeamMenu.getTeamColorItemConcretePowder(manageTeamMenu.getPreviousMaterial())));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
     }
 
@@ -530,15 +562,15 @@ public class MenusEventListener implements Listener {
         signInputManager.open(player, (p, lines) -> {
             String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
             gameConfigMenu.setDurationDisp(input);
-            gameConfigMenu.setDuration(GameConfigMenu.parseDuration(input.replaceAll(" ", "")));
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(gameConfigMenu.getInventory()));
+            gameConfigMenu.setDuration(HelperFunctions.parseDuration(input.replaceAll(" ", "")));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(gameConfigMenu.getInventory()));
         });
     }
 
-    private void handleSupplyDropMenu(InventoryClickEvent event, SupplyDropMenu supplyDropMenu, Player player, ItemStack clicked) {
+    private void handleSupplyDropMenu(InventoryClickEvent event, SupplyDropMenu supplyDropMenu, Player player, ItemStack clicked, SupplyDropCreationMenu supplyDropCreationMenu, ManageSupplyDropMenu manageSupplyDropMenu) {
         if (clicked.getType() == Material.LIME_DYE) {
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(new SupplyDropCreationMenu().getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
         }
         if (
                 clicked.getType() == Material.CHEST ||
@@ -566,44 +598,43 @@ public class MenusEventListener implements Listener {
                 clicked.getType() == Material.BROWN_SHULKER_BOX
         ) {
             if (event.isLeftClick()) {
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                ManageSupplyDropMenu manageSupplyDropMenu = new ManageSupplyDropMenu();
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
                 manageSupplyDropMenu.setSupplyDropIdx(event.getSlot());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
             } else if (event.isRightClick()) {
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                SupplyDrop.removeSupplyDrop(event.getSlot());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(supplyDropMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+                supplyDrop.removeSupplyDrop(event.getSlot());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropMenu.getInventory()));
             }
         }
     }
 
-    private void handleSupplyDropCreationMenu(InventoryClickEvent event, SupplyDropCreationMenu supplyDropCreationMenu, Player player, ItemStack clicked) {
+    private void handleSupplyDropCreationMenu(InventoryClickEvent event, SupplyDropCreationMenu supplyDropCreationMenu, Player player, ItemStack clicked, SupplyDropMenu supplyDropMenu) {
         if (clicked.getType() == Material.LIME_CONCRETE) {
-            SupplyDrop.createSupplyDrop(Bukkit.createInventory(null, 27), supplyDropCreationMenu.getLocation(), supplyDropCreationMenu.getContainer(), supplyDropCreationMenu.getTime());
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(new SupplyDropMenu().getInventory()));
+            supplyDrop.createSupplyDrop(plugin.getServer().createInventory(null, 27), supplyDropCreationMenu.getLocation(), supplyDropCreationMenu.getContainer(), supplyDropCreationMenu.getTime());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropMenu.getInventory()));
         }
         if (clicked.getType() == Material.RED_CONCRETE) {
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(new SupplyDropCreationMenu().getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
         }
         if (clicked.getType() == Material.OAK_SIGN) {
             if (event.isLeftClick()) {
                 signInputManager.open(player, (p, lines) -> {
                     String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
                     if (input.matches("\\w+ -?\\d* -?\\d* -?\\d* *")) {
-                        supplyDropCreationMenu.setLocation(new Location(Bukkit.getWorld(input.split(" ")[0]), Integer.parseInt(input.split(" ")[1]), Integer.parseInt(input.split(" ")[2]), Integer.parseInt(input.split(" ")[3])));
+                        supplyDropCreationMenu.setLocation(new Location(plugin.getServer().getWorld(input.split(" ")[0]), Integer.parseInt(input.split(" ")[1]), Integer.parseInt(input.split(" ")[2]), Integer.parseInt(input.split(" ")[3])));
                     } else {
                         player.sendMessage(Component.text("Unable to parse input!", NamedTextColor.RED));
                     }
-                    Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
+                    plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
                 });
             }
             if (event.isRightClick()) {
-                supplyDropCreationMenu.setLocation(new Location(Bukkit.getWorld("ptcoverworld"), 0, 64, 0));
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
+                supplyDropCreationMenu.setLocation(new Location(plugin.getServer().getWorld("ptcoverworld"), 0, 64, 0));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
             }
         }
         if (clicked.getType() == Material.PALE_OAK_SIGN) {
@@ -615,13 +646,13 @@ public class MenusEventListener implements Listener {
                     } else {
                         player.sendMessage(Component.text("Unable to parse input!", NamedTextColor.RED));
                     }
-                    Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
+                    plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
                 });
             }
             if (event.isRightClick()) {
                 supplyDropCreationMenu.setTime("01/01/1970 00:00:00");
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropCreationMenu.getInventory()));
             }
         }
         if (
@@ -654,26 +685,24 @@ public class MenusEventListener implements Listener {
             } else if (event.isRightClick()) {
                 supplyDropCreationMenu.decreasePreviousMaterial();
             }
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(4, supplyDropCreationMenu.getContainerItem(supplyDropCreationMenu.getPreviousMaterial())));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(4, supplyDropCreationMenu.getContainerItem(supplyDropCreationMenu.getPreviousMaterial())));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
     }
 
-    private void handleManageSupplyDropMenu(InventoryClickEvent event, ManageSupplyDropMenu manageSupplyDropMenu, Player player, ItemStack clicked) {
+    private void handleManageSupplyDropMenu(InventoryClickEvent event, ManageSupplyDropMenu manageSupplyDropMenu, Player player, ItemStack clicked, SupplyDropMenu supplyDropMenu) {
         // Top three rows are already ignored
         if (clicked.getType() == Material.SPECTRAL_ARROW) {
-            SupplyDropMenu supplyDropMenu = new SupplyDropMenu();
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(supplyDropMenu.getInventory()));
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropMenu.getInventory()));
         }
         if (clicked.getType() == Material.LIME_CONCRETE) {
-            SupplyDrop.setContainer(manageSupplyDropMenu.getContainerItem(manageSupplyDropMenu.getPreviousMaterial()).getType(), manageSupplyDropMenu.getSupplyDropIdx());
-            SupplyDrop.setInventory(manageSupplyDropMenu.getContents(), manageSupplyDropMenu.getSupplyDropIdx());
-            SupplyDrop.setLocation(manageSupplyDropMenu.getLocation(), manageSupplyDropMenu.getSupplyDropIdx());
-            SupplyDrop.saveSupplyDropConfig();
-            SupplyDropMenu supplyDropMenu = new SupplyDropMenu();
-            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-            Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(supplyDropMenu.getInventory()));
+            supplyDrop.setContainer(manageSupplyDropMenu.getContainerItem(manageSupplyDropMenu.getPreviousMaterial()).getType(), manageSupplyDropMenu.getSupplyDropIdx());
+            supplyDrop.setInventory(manageSupplyDropMenu.getContents(), manageSupplyDropMenu.getSupplyDropIdx());
+            supplyDrop.setLocation(manageSupplyDropMenu.getLocation(), manageSupplyDropMenu.getSupplyDropIdx());
+            supplyDrop.saveSupplyDropConfig();
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(supplyDropMenu.getInventory()));
             player.sendMessage(Component.text("Supply drop saved!", NamedTextColor.GREEN));
         }
         if (clicked.getType() == Material.OAK_SIGN) {
@@ -681,17 +710,17 @@ public class MenusEventListener implements Listener {
                 signInputManager.open(player, (p, lines) -> {
                     String input = String.join(" ", Arrays.stream(lines).filter(line -> !Objects.equals(line, "")).toList());
                     if (input.matches("\\w+ -?\\d* -?\\d* -?\\d* *")) {
-                        manageSupplyDropMenu.setLocation(new Location(Bukkit.getWorld(input.split(" ")[0]), Integer.parseInt(input.split(" ")[1]), Integer.parseInt(input.split(" ")[2]), Integer.parseInt(input.split(" ")[3])));
+                        manageSupplyDropMenu.setLocation(new Location(plugin.getServer().getWorld(input.split(" ")[0]), Integer.parseInt(input.split(" ")[1]), Integer.parseInt(input.split(" ")[2]), Integer.parseInt(input.split(" ")[3])));
                     } else {
                         player.sendMessage(Component.text("Unable to parse input!", NamedTextColor.RED));
                     }
-                    Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
+                    plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
                 });
             }
             if (event.isRightClick()) {
-                manageSupplyDropMenu.setLocation(new Location(Bukkit.getWorld("ptcoverworld"), 0, 64, 0));
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
+                manageSupplyDropMenu.setLocation(new Location(plugin.getServer().getWorld("ptcoverworld"), 0, 64, 0));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
             }
         }
         if (clicked.getType() == Material.PALE_OAK_SIGN) {
@@ -703,13 +732,13 @@ public class MenusEventListener implements Listener {
                     } else {
                         player.sendMessage(Component.text("Unable to parse input!", NamedTextColor.RED));
                     }
-                    Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
+                    plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
                 });
             }
             if (event.isRightClick()) {
                 manageSupplyDropMenu.setTime("01/01/1970 00:00:00");
-                Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
-                Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.closeInventory());
+                plugin.getServer().getScheduler().runTask(plugin, () -> player.openInventory(manageSupplyDropMenu.getInventory()));
             }
         }
         if (
@@ -742,8 +771,8 @@ public class MenusEventListener implements Listener {
             } else if (event.isRightClick()) {
                 manageSupplyDropMenu.decreasePreviousMaterial();
             }
-            Bukkit.getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(31, manageSupplyDropMenu.getContainerItem(manageSupplyDropMenu.getPreviousMaterial())));
-            Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            plugin.getServer().getScheduler().runTask(plugin, () -> player.getOpenInventory().getTopInventory().setItem(31, manageSupplyDropMenu.getContainerItem(manageSupplyDropMenu.getPreviousMaterial())));
+            plugin.getServer().getScheduler().runTask(plugin, player::updateInventory);
         }
     }
 }

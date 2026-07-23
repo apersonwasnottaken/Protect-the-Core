@@ -1,5 +1,6 @@
 package com.example.protectTheCore.game;
 
+import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.core.Teams;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -19,22 +20,27 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 public class Cores {
 
     public static final Map<Integer, Double> coreHealthMap = new HashMap<>();
+    private ProtectTheCore plugin;
+    private Teams teams;
+
+    public Cores(@NotNull ProtectTheCore plugin, @NotNull Teams teams) {
+        this.plugin = plugin;
+        this.teams = teams;
+    }
 
     public static double getMaxCoreHealth() {
         return 1000.0;
     }
 
-    public static void giveCore(int team, Player player) {
+    public void giveCore(int team, Player player) {
         ItemStack item = ItemStack.of(Material.END_CRYSTAL);
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         pdc.set(new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER, team);
-        meta.displayName(Component.text(Teams.getTeamName(team) + "'s Core", TextColor.color(Teams.getTeamColor(team))).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE));
+        meta.displayName(Component.text(teams.getTeamName(team) + "'s Core", TextColor.color(teams.getTeamColor(team))).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE));
         meta.lore(Arrays.asList(
                 Component.text("Used for the 'Protect The Core' event.").decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE),
                 Component.text("").decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE),
@@ -45,7 +51,7 @@ public class Cores {
         player.give(item);
     }
 
-    public static void spawnCrystal(Location location, int team, boolean placedByHand) {
+    public void spawnCrystal(Location location, int team, boolean placedByHand) {
         EnderCrystal crystal = (EnderCrystal) location.getWorld().spawnEntity(location, EntityType.END_CRYSTAL);
 
         if (location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY(), location.getBlockZ()).getState().getType() == Material.AIR) {
@@ -66,13 +72,20 @@ public class Cores {
         crystal.getPersistentDataContainer().set(new NamespacedKey(plugin, "placed_by_hand"), PersistentDataType.BOOLEAN, placedByHand);
         coreHealthMap.put(team, getMaxCoreHealth());
 
+        ArmorStand armorStand = (ArmorStand) location.getWorld().spawnEntity(location, EntityType.ARMOR_STAND);
+        armorStand.setMarker(true);
+        armorStand.setInvisible(true);
+        armorStand.setInvulnerable(true);
+        armorStand.getPersistentDataContainer().set(new NamespacedKey(plugin, "custom_core_nametag_top"), PersistentDataType.INTEGER, crystal.getPersistentDataContainer().get(new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER));
+        armorStand.addPassenger(crystal);
+
         TextDisplay topRow = (TextDisplay) crystal.getWorld().spawnEntity(crystal.getLocation().add(0, 2.5, 0), EntityType.TEXT_DISPLAY);
         topRow.getPersistentDataContainer().set(new NamespacedKey(plugin, "custom_core_nametag_top"), PersistentDataType.INTEGER, crystal.getPersistentDataContainer().get(new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER));
         topRow.setInvulnerable(true);
         topRow.setAlignment(TextDisplay.TextAlignment.CENTER);
         topRow.setSeeThrough(true);
         topRow.setBillboard(Display.Billboard.CENTER);
-        topRow.text(Component.text(Teams.getTeamName(crystal.getPersistentDataContainer().get(new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER)) + "'s", TextColor.color(Teams.getTeamColor(crystal.getPersistentDataContainer().get(new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER)))).append(Component.text(" Core", NamedTextColor.WHITE)));
+        topRow.text(Component.text(teams.getTeamName(crystal.getPersistentDataContainer().get(new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER)) + "'s", TextColor.color(teams.getTeamColor(crystal.getPersistentDataContainer().get(new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER)))).append(Component.text(" Core", NamedTextColor.WHITE)));
 
         double healthPercentage = (double) Math.round(crystal.getPersistentDataContainer().get(healthKey, PersistentDataType.INTEGER) / Cores.getMaxCoreHealth() * 1000) / 10;
         Component healthbar = getHealthbarComponent(healthPercentage);
@@ -85,7 +98,7 @@ public class Cores {
         bottomRow.text(healthbar);
     }
 
-    public static @NotNull Component getHealthbarComponent(double healthPercentage) {
+    public @NotNull Component getHealthbarComponent(double healthPercentage) {
         String healthbarChars = "||||||||||||||||||";
         List<Character> healthbarList = new ArrayList<>();
 
@@ -107,7 +120,7 @@ public class Cores {
         return healthbar;
     }
 
-    public static void placeCore(Player player, Block clickedBlock, BlockFace blockFace, int team) {
+    public void placeCore(Player player, Block clickedBlock, BlockFace blockFace, int team) {
         Location location = clickedBlock.getLocation();
         location = location.add(blockFace.getModX(), blockFace.getModY(), blockFace.getModZ());
         location.add(0.5, 0, 0.5);

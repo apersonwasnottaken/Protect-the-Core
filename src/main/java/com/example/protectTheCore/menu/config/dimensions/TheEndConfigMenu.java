@@ -5,15 +5,15 @@ import com.example.protectTheCore.menu.CustomMenuHolder;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Material;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-import static com.example.protectTheCore.ProtectTheCore.config;
-
 public class TheEndConfigMenu implements CustomMenuHolder {
 
     private final Inventory inventory;
+    private final FileConfiguration config;
     private int seedInt, borderSizeInt = 10000;
 
     public void setSeed(int val) {
@@ -24,7 +24,8 @@ public class TheEndConfigMenu implements CustomMenuHolder {
         borderSizeInt = val;
     }
 
-    public TheEndConfigMenu(ProtectTheCore plugin) {
+    public TheEndConfigMenu(@NotNull ProtectTheCore plugin, @NotNull FileConfiguration config) {
+        this.config = config;
         this.inventory = plugin.getServer().createInventory(this, 36, Component.text("ᴛʜᴇ ᴇɴᴅ ᴄᴏɴꜰɪɢ"));
         // Items
         ItemStack close = ItemStack.of(Material.BARRIER);

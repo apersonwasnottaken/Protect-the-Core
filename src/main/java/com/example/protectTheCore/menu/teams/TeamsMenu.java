@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
@@ -21,7 +22,10 @@ import java.util.ArrayList;
 
 public class TeamsMenu implements CustomMenuHolder {
 
-    private Inventory inventory = this.getInventory();
+    private Inventory inventory;
+    private final ProtectTheCore plugin;
+    private final ComponentLogger logger;
+    private final TeamCreationMenu teamCreationMenu;
 
     private JSONArray readTeamData() throws IOException {
         Path path = Path.of("./plugins/ProtectTheCore/teams.json");
@@ -32,17 +36,20 @@ public class TeamsMenu implements CustomMenuHolder {
             Files.writeString(path,"[]");
             return new JSONArray();
         } catch (ClassCastException e) {
-            ProtectTheCore.logger.error(Component.text("An unexpected error occurred while parsing the teams.json file.\n" + e, NamedTextColor.RED));
+            logger.error(Component.text("An unexpected error occurred while parsing the teams.json file.\n" + e, NamedTextColor.RED));
             return new JSONArray();
         }
     }
 
-    public TeamsMenu() {
-        this.inventory = ProtectTheCore.plugin.getServer().createInventory(this, 36, Component.text("ᴛᴇᴀᴍꜱ"));
+    public TeamsMenu(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger, @NotNull TeamCreationMenu teamCreationMenu) {
+        this.plugin = plugin;
+        this.logger = logger;
+        this.teamCreationMenu = teamCreationMenu;
+        this.inventory = this.getInventory();
     }
     @Override
     public @NotNull Inventory getInventory() {
-        this.inventory = ProtectTheCore.plugin.getServer().createInventory(this, 36, Component.text("ᴛᴇᴀᴍꜱ"));
+        this.inventory = plugin.getServer().createInventory(this, 36, Component.text("ᴛᴇᴀᴍꜱ"));
         try {
             JSONArray teams = readTeamData();
             final int[] i = {0};
@@ -67,7 +74,7 @@ public class TeamsMenu implements CustomMenuHolder {
                     rainbowConcrete.add(Material.BLACK_CONCRETE);
                     rainbowConcrete.add(Material.BROWN_CONCRETE);
 
-                    ItemStack teamNameDialog = ItemStack.of(rainbowConcrete.get(TeamCreationMenu.getTeamColorsInt().indexOf(teamInfo.getInt("color"))));
+                    ItemStack teamNameDialog = ItemStack.of(rainbowConcrete.get(teamCreationMenu.getTeamColorsInt().indexOf(teamInfo.getInt("color"))));
                     teamNameDialog.editMeta(meta -> {
                         meta.displayName(Component.text(teamInfo.getString("name"),TextColor.color(teamInfo.getInt("color"))).decorationIfAbsent(TextDecoration.ITALIC,TextDecoration.State.FALSE));
                         ArrayList<Component> lore = new ArrayList<>();
@@ -93,8 +100,8 @@ public class TeamsMenu implements CustomMenuHolder {
                     i[0]++;
                 }
                 catch (ClassCastException e) {
-                    ProtectTheCore.logger.error(Component.text("An error occurred while trying to parse the teams list! This could potentially be due to malformed data. Please check the teams.json file for corruption.", NamedTextColor.RED));
-                    ProtectTheCore.logger.error(Component.text("The error is below: \n" + e, NamedTextColor.RED));
+                    logger.error(Component.text("An error occurred while trying to parse the teams list! This could potentially be due to malformed data. Please check the teams.json file for corruption.", NamedTextColor.RED));
+                    logger.error(Component.text("The error is below: \n" + e, NamedTextColor.RED));
                 }
             });
             // Items

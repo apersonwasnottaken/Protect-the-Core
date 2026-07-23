@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -25,15 +26,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 public class SupplyDropCreationMenu implements CustomMenuHolder {
 
     private final Inventory inventory;
-    private Location location = new Location(plugin.getServer().getWorld("ptcoverworld"), 0, 64, 0);
-    private String time = "01/01/1970 00:00:00";
+    private final ProtectTheCore plugin;
+    private final ComponentLogger logger;
+    private Location location;
+    private String time;
 
-    public static JSONArray readSupplyDropData() throws IOException {
+    public JSONArray readSupplyDropData() throws IOException {
         Path path = Path.of("./plugins/ProtectTheCore/supply_drops.json");
         try {
             Object obj = new JSONParser().parse(new FileReader("./plugins/ProtectTheCore/supply_drops.json"));
@@ -43,13 +44,17 @@ public class SupplyDropCreationMenu implements CustomMenuHolder {
             return new JSONArray();
         } catch (ParseException e) {
             Files.writeString(path, "{}");
-            ProtectTheCore.logger.error(Component.text("An unexpected error occurred while parsing the supply_drops.json file.\n" + e, TextColor.color(255, 0, 0)));
+            logger.error(Component.text("An unexpected error occurred while parsing the supply_drops.json file.\n" + e, TextColor.color(255, 0, 0)));
         }
         return new JSONArray();
     }
 
-    public SupplyDropCreationMenu() {
-        this.inventory = ProtectTheCore.plugin.getServer().createInventory(this, 9, Component.text("ᴄʀᴇᴀᴛᴇ ᴀ ꜱᴜᴘᴘʟʏ ᴅʀᴏᴘ"));
+    public SupplyDropCreationMenu(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger) {
+        this.plugin = plugin;
+        this.logger = logger;
+        this.location = new Location(plugin.getServer().getWorld("ptcoverworld"), 0, 64, 0);
+        this.time = "01/01/1970 00:00:00";
+        this.inventory = plugin.getServer().createInventory(this, 9, Component.text("ᴄʀᴇᴀᴛᴇ ᴀ ꜱᴜᴘᴘʟʏ ᴅʀᴏᴘ"));
     }
 
     private int previousMaterial = 0;

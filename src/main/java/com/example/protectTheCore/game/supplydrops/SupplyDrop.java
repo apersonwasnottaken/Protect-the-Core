@@ -2,9 +2,11 @@ package com.example.protectTheCore.game.supplydrops;
 
 import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.helper.HelperFunctions;
+import com.example.protectTheCore.helper.PluginData;
 import net.kyori.adventure.text.Component;
 
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.*;
 import org.bukkit.block.*;
@@ -15,28 +17,30 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Transformation;
-import org.bukkit.util.io.BukkitObjectInputStream;
-import org.bukkit.util.io.BukkitObjectOutputStream;
+
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Base64;
-
-import static com.example.protectTheCore.ProtectTheCore.*;
-import static com.example.protectTheCore.helper.HelperFunctions.JSONArrayToInventory;
 
 public class SupplyDrop {
 
-    private static ArrayList<JSONObject> supplyDropConfig = new ArrayList<>();
+    private JSONArray supplyDropConfig = new JSONArray();
+    private ProtectTheCore plugin;
+    private ComponentLogger logger;
+    private PluginData pluginData;
+
+    public SupplyDrop (@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger, @NotNull PluginData pluginData) {
+        this.plugin = plugin;
+        this.logger = logger;
+        this.pluginData = pluginData;
+    }
 
     private JSONArray readSupplyDropData() throws IOException {
         Path path = Path.of("./plugins/ProtectTheCore/supply_drops.json");
@@ -47,27 +51,27 @@ public class SupplyDrop {
             Files.writeString(path,"[]");
             return new JSONArray();
         } catch (ClassCastException e) {
-            ProtectTheCore.logger.error(Component.text("An unexpected error occurred while parsing the supply_drops.json file.\n" + e, NamedTextColor.RED));
+            logger.error(Component.text("An unexpected error occurred while parsing the supply_drops.json file.\n" + e, NamedTextColor.RED));
             return new JSONArray();
         }
     }
 
-    public static void parseSupplyDropConfig() {
+    public void parseSupplyDropConfig() {
         supplyDropConfig.clear();
         try {
-            JSONArray teamsData = new JSONArray(Files.readString(Path.of("./plugins/ProtectTheCore/supply_drops.json")));
+            JSONArray teamsData = new JSONArray(pluginData);
             teamsData.forEach(obj -> {
-                supplyDropConfig.add((JSONObject) obj);
+                supplyDropConfig.put(obj);
             });
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public static void saveSupplyDropConfig() {
+    public void saveSupplyDropConfig() {
         try {
             JSONArray combinedData = new JSONArray();
-            for (JSONObject jsonObject : supplyDropConfig) {
+            for (Object jsonObject : supplyDropConfig) {
                 combinedData.put(jsonObject);
             }
             JSONObject combineData = new JSONObject();
@@ -78,107 +82,107 @@ public class SupplyDrop {
         }
     }
 
-    public static void createSupplyDrop(Inventory inventory, Location location, Material container, String time) {
+    public void createSupplyDrop(Inventory inventory, Location location, Material container, String time) {
         JSONObject supplyDrop = new JSONObject();
         supplyDrop.put("contents", HelperFunctions.inventoryToJSONArray(inventory));
         supplyDrop.put("location", location.getWorld().getName() + " " + ((int) location.getX()) + " " + ((int) location.getY()) + " " + ((int) location.getZ()));
         supplyDrop.put("container", container);
         supplyDrop.put("time", time);
         supplyDrop.put("enabled", true);
-        supplyDropConfig.add(supplyDrop);
+        supplyDropConfig.put(supplyDrop);
         saveSupplyDropConfig();
     }
 
-    public static void removeSupplyDrop(int idx) {
-        if (idx > supplyDropConfig.size() || idx < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + idx + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+    public void removeSupplyDrop(int idx) {
+        if (idx > getSupplyDropConfigSize() || idx < 0) {
+            logger.error(Component.text("Supply drop index " + idx + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
         supplyDropConfig.remove(idx);
         saveSupplyDropConfig();
     }
 
-    public static int getSupplyDropConfigSize() {
-        return supplyDropConfig.size();
+    public int getSupplyDropConfigSize() {
+        return supplyDropConfig.length();
     }
 
-    public static Inventory getInventory(int supplyDropID) {
+    public Inventory getInventory(int supplyDropID) {
         parseSupplyDropConfig();
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         return HelperFunctions.JSONArrayToInventory((JSONArray) supplyDrop.get("contents"));
     }
 
-    public static void setInventory(Inventory inventory, int supplyDropID) {
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+    public void setInventory(Inventory inventory, int supplyDropID) {
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         JSONArray inventoryContents = HelperFunctions.inventoryToJSONArray(inventory);
         supplyDrop.put("contents", inventoryContents);
-        supplyDropConfig.set(supplyDropID, supplyDrop);
+        supplyDropConfig.put(supplyDropID, supplyDrop);
         saveSupplyDropConfig();
     }
 
-    public static Location getLocation(int supplyDropID) {
+    public Location getLocation(int supplyDropID) {
         parseSupplyDropConfig();
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         return new Location(plugin.getServer().getWorld(supplyDrop.getString("location").split(" ")[0]), Integer.parseInt(supplyDrop.getString("location").split(" ")[1]), Integer.parseInt(supplyDrop.getString("location").split(" ")[2]), Integer.parseInt(supplyDrop.getString("location").split(" ")[3]));
     }
 
-    public static void setLocation(Location location, int supplyDropID) {
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+    public void setLocation(Location location, int supplyDropID) {
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         supplyDrop.put("location", location.getWorld().getName() + " " + (int) location.getX() + " " + (int) location.getY() + " " + (int) location.getZ());
-        supplyDropConfig.set(supplyDropID, supplyDrop);
+        supplyDropConfig.put(supplyDropID, supplyDrop);
         saveSupplyDropConfig();
     }
 
-    public static String getTime(int supplyDropID) {
+    public String getTime(int supplyDropID) {
         parseSupplyDropConfig();
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         return supplyDrop.getString("time");
     }
 
-    public static void setTime(String time, int supplyDropID) {
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+    public void setTime(String time, int supplyDropID) {
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         supplyDrop.put("time", time);
-        supplyDropConfig.set(supplyDropID, supplyDrop);
+        supplyDropConfig.put(supplyDropID, supplyDrop);
         saveSupplyDropConfig();
     }
 
-    public static Material getContainer(int supplyDropID) {
+    public Material getContainer(int supplyDropID) {
         parseSupplyDropConfig();
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         return SupplyDrop.getContainersList().get(SupplyDrop.getContainersListString().indexOf(supplyDrop.get("container")));
     }
 
-    public static void setContainer(Material container, int supplyDropID) {
-        if (supplyDropID > supplyDropConfig.size() || supplyDropID < 0) {
-            ProtectTheCore.logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (supplyDropConfig.size() - 1), NamedTextColor.RED));
+    public void setContainer(Material container, int supplyDropID) {
+        if (supplyDropID > getSupplyDropConfigSize() || supplyDropID < 0) {
+            logger.error(Component.text("Supply drop index " + supplyDropID + " is out of bounds! Max: " + (getSupplyDropConfigSize() - 1), NamedTextColor.RED));
         }
-        JSONObject supplyDrop = supplyDropConfig.get(supplyDropID);
+        JSONObject supplyDrop = (JSONObject) supplyDropConfig.get(supplyDropID);
         supplyDrop.put("container", container);
-        supplyDropConfig.set(supplyDropID, supplyDrop);
+        supplyDropConfig.put(supplyDropID, supplyDrop);
         saveSupplyDropConfig();
     }
 
-    public static void spawnSupplyDrop(JSONArray inventory, Location location, Material container) {
+    public void spawnSupplyDrop(JSONArray inventory, Location location, Material container) {
         BlockDisplay display = location.getWorld().spawn(new Location(location.getWorld(), location.getX(), 256, location.getZ()), BlockDisplay.class, entity -> {
             entity.getPersistentDataContainer().set(new NamespacedKey(plugin, "supply_drop_contents"), PersistentDataType.STRING, inventory.toString());
             entity.getPersistentDataContainer().set(new NamespacedKey(plugin, "supply_drop_final_y"), PersistentDataType.INTEGER, ((int) location.getY()));
@@ -190,17 +194,17 @@ public class SupplyDrop {
         Bukkit.broadcast(MiniMessage.miniMessage().deserialize("<white>A <yellow>Supply Drop</yellow> has spawned at <yellow>" + location.getX() + " " + location.getY() + " " + location.getZ() + "</yellow>"));
     }
 
-    public static void supplyDropLoop() {
+    public void supplyDropLoop() {
         new BukkitRunnable() {
             @Override
             public void run() {
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss");
-                for (int i = 0; i < supplyDropConfig.size(); i++) {
-                    JSONObject obj = supplyDropConfig.get(i);
+                for (int i = 0; i < getSupplyDropConfigSize(); i++) {
+                    JSONObject obj = (JSONObject) supplyDropConfig.get(i);
                     if (LocalDateTime.now().isAfter(LocalDateTime.parse(obj.getString("time"), formatter)) && obj.getBoolean("enabled")) {
-                        spawnSupplyDrop(obj.getJSONArray("contents"), SupplyDrop.getLocation(i), SupplyDrop.getContainer(i));
+                        spawnSupplyDrop(obj.getJSONArray("contents"), getLocation(i), getContainer(i));
                         obj.put("enabled", false);
-                        supplyDropConfig.set(i, obj);
+                        supplyDropConfig.put(i, obj);
                         saveSupplyDropConfig();
                     }
                 }
@@ -234,11 +238,11 @@ public class SupplyDrop {
                                     container.update(true, true);
                                 }
                                 else {
-                                    ProtectTheCore.logger.warn("Not an instance of Container!");
+                                    logger.warn("Not an instance of Container!");
                                 }
                             }
                             else {
-                                ProtectTheCore.logger.warn("No items found!");
+                                logger.warn("No items found!");
                             }
                             entity.remove();
                         }

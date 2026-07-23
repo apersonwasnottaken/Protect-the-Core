@@ -3,19 +3,25 @@ package com.example.protectTheCore.game;
 import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.core.Teams;
 import com.example.protectTheCore.game.events.AwakeningEvent;
-import com.example.protectTheCore.helper.WorldGenerator;
+import com.example.protectTheCore.game.events.ElectionEvent;
 import com.example.protectTheCore.game.wall.WallManager;
 import com.example.protectTheCore.game.zone.ZoneManager;
+import com.example.protectTheCore.helper.HelperFunctions;
+import com.example.protectTheCore.helper.WorldGenerator;
+import com.example.protectTheCore.listeners.AfterWallsListener;
+import com.example.protectTheCore.listeners.DeathInterceptorListener;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.EquipmentSlotGroup;
@@ -25,6 +31,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.*;
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -33,20 +40,45 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
-import static com.example.protectTheCore.ProtectTheCore.*;
-import static com.example.protectTheCore.game.Events.parseEvents;
-import static com.example.protectTheCore.game.Events.populateDefaultEvents;
-import static com.example.protectTheCore.game.GameScoreboard.findEntitiesWithKey;
-import static com.example.protectTheCore.game.GameScoreboard.findEntitiesWithKeyValue;
-
 public class ProtectTheCoreGame {
 
     private World world;
+    private final ProtectTheCore plugin;
+    private final ComponentLogger logger;
+    private final FileConfiguration config;
+    private final Teams teams;
+    private final Events events;
+    private final Cores cores;
+    private final WorldGenerator worldGenerator;
+    private final ZoneManager zoneManager;
+    private final DeathInterceptorListener deathInterceptor;
+    private final WallManager wallManager;
+    private final AfterWallsListener afterWallsListener;
+    private final GameScoreboard gameScoreboard;
+    private final AwakeningEvent awakeningEvent;
+    private final ElectionEvent electionEvent;
 
-    public static ItemStack getCrown(int teamIdx, String player) {
+    public ProtectTheCoreGame(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger, @NotNull FileConfiguration config, @NotNull Teams teams, @NotNull Events events, @NotNull Cores cores, @NotNull WorldGenerator worldGenerator, @NotNull ZoneManager zoneManager, @NotNull DeathInterceptorListener deathInterceptor, @NotNull WallManager wallManager, @NotNull AfterWallsListener afterWallsListener, @NotNull GameScoreboard gameScoreboard, @NotNull AwakeningEvent awakeningEvent, @NotNull ElectionEvent electionEvent) {
+        this.plugin = plugin;
+        this.logger = logger;
+        this.config = config;
+        this.teams = teams;
+        this.events = events;
+        this.cores = cores;
+        this.worldGenerator = worldGenerator;
+        this.zoneManager = zoneManager;
+        this.deathInterceptor = deathInterceptor;
+        this.wallManager = wallManager;
+        this.afterWallsListener = afterWallsListener;
+        this.gameScoreboard = gameScoreboard;
+        this.awakeningEvent = awakeningEvent;
+        this.electionEvent = electionEvent;
+    }
+
+    public ItemStack getCrown(int teamIdx, String player) {
         ItemStack crown = new ItemStack(Material.GOLDEN_HELMET);
         crown.editMeta(meta -> {
-            meta.displayName(Component.text(Teams.getTeamName(teamIdx) + "'s", TextColor.color(Teams.getTeamColor(teamIdx))).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE).append(MiniMessage.miniMessage().deserialize("<italic:false><gold> Crown</gold>")));
+            meta.displayName(Component.text(teams.getTeamName(teamIdx) + "'s", TextColor.color(teams.getTeamColor(teamIdx))).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE).append(MiniMessage.miniMessage().deserialize("<italic:false><gold> Crown</gold>")));
             meta.lore(List.of(MiniMessage.miniMessage().deserialize("<italic:false><white>Awarded to <yellow>" + player + "</yellow>, the rightful ruler of the <aqua>Rift SMP.")));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "ptc_crown"), PersistentDataType.BOOLEAN, true);
             NamespacedKey customAttributeKey = new NamespacedKey(plugin, "custom_attribute");
@@ -86,10 +118,10 @@ public class ProtectTheCoreGame {
 
 
     public void startGame() {
-        int teamSize = Teams.getTeamsConfig().size();
+        int teamsize = teams.getTeamsConfig().size();
 
-        if (teamSize != 2 && teamSize != 4) {
-            ProtectTheCore.logger.error(Component.text(
+        if (teamsize != 2 && teamsize != 4) {
+            logger.error(Component.text(
                     "Only 2 or 4 teams supported.",
                     NamedTextColor.RED
             ));
@@ -97,19 +129,19 @@ public class ProtectTheCoreGame {
         }
 
         plugin.getConfig().set("game.time_end", LocalDateTime.now().plusSeconds(plugin.getConfig().getInt("game.duration")).toString());
-        populateDefaultEvents();
+        events.populateDefaultEvents();
 
         world = Bukkit.getWorld("ptcoverworld");
         if (world == null) {
-            world = WorldGenerator.createOverworld(plugin.getConfig().getInt("config.overworld.seed"), plugin.getConfig().getInt("config.overworld.border"));
+            world = worldGenerator.createOverworld(plugin.getConfig().getInt("config.overworld.seed"), plugin.getConfig().getInt("config.overworld.border"));
         }
 
-        ProtectTheCore.zoneManager.setZones(buildZones(Teams.getTeamsConfig().size(), teamSize == 2 ? WallManager.WallMode.X : WallManager.WallMode.BOTH, world), world);
+        zoneManager.setZones(buildZones(teams.getTeamsConfig().size(), teamsize == 2 ? WallManager.WallMode.X : WallManager.WallMode.BOTH, world), world);
 
         deathInterceptor.setDefaultWorld(world);
 
         if (world == null) {
-            ProtectTheCore.logger.error("World creation failed!");
+            logger.error("World creation failed!");
             return;
         }
 
@@ -117,7 +149,7 @@ public class ProtectTheCoreGame {
             preloadChunks(world);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 try {
-                    runGame(world, teamSize);
+                    runGame(world, teamsize);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -125,39 +157,42 @@ public class ProtectTheCoreGame {
         }, 0L);
     }
 
-    public static void startGameLoop() {
+    public void startGameLoop() {
         try {
             wallManager.getBufferSize();
-            parseEvents();
+            events.parseEvents();
             afterWallsListener.parseDestroyedCores();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         new BukkitRunnable() {
-            int timer = GameScoreboard.getTimer();
+            int timer = gameScoreboard.getTimer();
             int counter = 0;
             boolean lowered = false;
-            boolean awakeningStarted = false;
+            boolean awakeningStarted = false, electionStarted = false;
             @Override
             public void run() {
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     if (!plugin.getConfig().getBoolean("game.started")) {
                         player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
-                        GameScoreboard.bossBar.removeViewer(player);
+                        gameScoreboard.getBossBar().removeViewer(player);
                         continue;
                     }
                     try {
-                        GameScoreboard.sendPtcScoreboard(player, Math.toIntExact(Duration.between(LocalDateTime.now(), LocalDateTime.parse(Objects.requireNonNull(plugin.getConfig().getString("game.time_end")))).toMillis()));
-                        GameScoreboard.sendPtcBossbar(player, timer, GameScoreboard.bossBar);
+                        gameScoreboard.sendPtcScoreboard(player, Math.toIntExact(Duration.between(LocalDateTime.now(), LocalDateTime.parse(Objects.requireNonNull(plugin.getConfig().getString("game.time_end")))).toMillis()));
+                        gameScoreboard.sendPtcBossbar(player, timer, gameScoreboard.getBossBar());
                         if (timer < 1) {
                             if (!lowered) {
-                                ProtectTheCoreGame.lowerWall();
+                                lowerWall();
                                 lowered = true;
                                 plugin.getConfig().set("game.zones_enabled", false);
                             }
                         }
-                        player.displayName(Component.text("[LEADER] ", TextColor.color(Teams.getTeamColor(Teams.getTeamIndexFromPlayer(player.getName())))).decorationIfAbsent(TextDecoration.BOLD, TextDecoration.State.TRUE).append(Component.text(player.getName(), TextColor.color(Teams.getTeamColor(Teams.getTeamIndexFromPlayer(player.getName()))))));
-                        if (Objects.equals(Teams.getTeamLeader(Teams.getTeamIndexFromPlayer(player.getName())), player.getName())) {
+                        TextColor teamColor = TextColor.color(teams.getTeamColor(teams.getTeamIndexFromPlayer(player.getName())));
+                        Component leaderTag = Component.text("[LEADER] ", NamedTextColor.YELLOW).decorationIfAbsent(TextDecoration.BOLD, TextDecoration.State.TRUE).append(Component.text(player.getName(), teamColor).decorationIfAbsent(TextDecoration.BOLD, TextDecoration.State.FALSE));
+                        // player.playerListName(leaderTag);
+                        // player.displayName(leaderTag);
+                        if (Objects.equals(teams.getTeamLeader(teams.getTeamIndexFromPlayer(player.getName())), player.getName())) {
                             if (timer <= 60 * 10 && counter < 1) {
                                 player.sendMessage(Component.text("You have 10m to place down your core!", NamedTextColor.RED));
                                 player.showTitle(Title.title(Component.text("Time Warning!", NamedTextColor.RED), Component.text("You have 10 minutes to place down your core!", NamedTextColor.GRAY)));
@@ -180,55 +215,63 @@ public class ProtectTheCoreGame {
                             }
                         }
                     } catch (IOException e) {
-                        ProtectTheCore.logger.error(e.toString());
+                        HelperFunctions.sendErrorMessage(player, e);
+                        logger.error(e.toString());
                     }
                 }
-                for (int i = 0; i < Teams.getTeamsConfig().size(); i++) {
+                for (int i = 0; i < teams.getTeamsConfig().size(); i++) {
                     World customOverworld = Bukkit.getWorld("ptcoverworld");
                     if (customOverworld == null) continue;
-                    if (!Teams.teamHasCrown(i)) {
-                        EnderCrystal enderCrystal = Teams.getTeamCore(i, customOverworld);
+                    if (!teams.teamHasCrown(i)) {
+                        EnderCrystal enderCrystal = teams.getTeamCore(i, customOverworld);
                         if (enderCrystal == null) {
                             continue;
                         }
                         if (timer % 90 == 0 && WallManager.WallMode.valueOf(plugin.getConfig().getString("game.wall_mode")) == WallManager.WallMode.NONE) {
                             enderCrystal.getPersistentDataContainer().set(new NamespacedKey(plugin, "crystal_health"), PersistentDataType.INTEGER, enderCrystal.getPersistentDataContainer().get(new NamespacedKey(plugin, "crystal_health"), PersistentDataType.INTEGER) - 1);
                         }
-                        Teams.getTeamMembers(i).forEach(member -> {
+                        teams.getTeamMembers(i).forEach(member -> {
                             Player player = Bukkit.getPlayer(((JSONObject) member).getString("username"));
                             if (player != null && player.getGameMode() == GameMode.SURVIVAL) {
-                                player.sendActionBar(Component.text("Your team has lost their crown! Your core will start to take damage once fight mode is on.", NamedTextColor.RED));
+                                if (!Objects.equals(events.getNextEvent().getString("name"), "Election")) {
+                                    player.sendActionBar(Component.text("Your team has lost their crown! Your core will start to take damage once fight mode is on.", NamedTextColor.RED));
+                                }
                             }
                         });
                     }
                     else {
-                        if (Bukkit.getPlayer(Teams.getTeamLeader(i)) == null) continue;
-                        Objects.requireNonNull(Bukkit.getPlayer(Teams.getTeamLeader(i))).addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 20, 255, true, true));
+                        if (Bukkit.getPlayer(teams.getTeamLeader(i)) == null) continue;
+                        Objects.requireNonNull(Bukkit.getPlayer(teams.getTeamLeader(i))).addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 20, 255, true, true));
                     }
                 }
-                if (LocalDateTime.now().isAfter(Events.getEventStart("The Awakening")) && !awakeningStarted) {
-                    AwakeningEvent.awakeningEventLoop(config.getBoolean("events.awakening.started"));
+                if (LocalDateTime.now().isAfter(events.getEventStart("Election")) && !electionStarted) {
+                    electionEvent.startElection(config.getBoolean("events.election.started"));
+                    electionStarted = true;
+                    config.set("events.election.started", true);
+                }
+                if (LocalDateTime.now().isAfter(events.getEventStart("The Awakening")) && !awakeningStarted) {
+                    awakeningEvent.awakeningEventLoop(config.getBoolean("events.awakening.started"));
                     awakeningStarted = true;
                     config.set("events.awakening.started", true);
                 }
-                timer = GameScoreboard.getTimer();
+                timer = gameScoreboard.getTimer();
             }
         }.runTaskTimer(plugin, 1L, 1L);
     }
-    public static void lowerWall() {
-        ProtectTheCore.wallManager.setMode(WallManager.WallMode.NONE);
-        ProtectTheCore.zoneManager.clear();
+    public void lowerWall() {
+        wallManager.setMode(WallManager.WallMode.NONE);
+        zoneManager.clear();
         plugin.getConfig().set("game.wall_mode", WallManager.WallMode.NONE.name());
         plugin.getConfig().set("game.zones_enabled", false);
         plugin.saveConfig();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.sendMessage(Component.text("The wall has come down - go fight!", NamedTextColor.GOLD));
+            player.sendMessage(Component.text("The walls have come down - go fight!", NamedTextColor.GOLD));
         }
     }
 
     public void stopGame() {
-        ProtectTheCore.wallManager.setMode(WallManager.WallMode.NONE);
-        ProtectTheCore.zoneManager.clear();
+        wallManager.setMode(WallManager.WallMode.NONE);
+        zoneManager.clear();
         world = Bukkit.getWorld("world");
         if (world == null) {
             world = Bukkit.getWorlds().getFirst();
@@ -254,16 +297,16 @@ public class ProtectTheCoreGame {
         world = Bukkit.getWorld("ptcoverworld");
         if (world == null) return;
         if (plugin.getConfig().get("game.time_end") != null) {
-            ProtectTheCore.zoneManager.setZones(buildZones(Teams.getTeamsConfig().size(), wallMode, world), world);
+            zoneManager.setZones(buildZones(teams.getTeamsConfig().size(), wallMode, world), world);
         }
         deathInterceptor.setDefaultWorld(world);
-        ProtectTheCore.wallManager.setMode(wallMode);
+        wallManager.setMode(wallMode);
         boolean zonesEnabled = plugin.getConfig().getBoolean("game.zones_enabled", false);
         if (zonesEnabled) {
-            int teamSize = Teams.getTeamsConfig().size();
-            ProtectTheCore.zoneManager.setZones(buildZones(teamSize, wallMode, world), world);
+            int teamsize = teams.getTeamsConfig().size();
+            zoneManager.setZones(buildZones(teamsize, wallMode, world), world);
         }
-        ProtectTheCore.logger.info(Component.text(
+        logger.info(Component.text(
                 "Game state restored from config: wall=" + wallMode + ", zones=" + zonesEnabled,
                 NamedTextColor.GREEN));
         startGameLoop();
@@ -279,39 +322,39 @@ public class ProtectTheCoreGame {
         }
     }
 
-    private void runGame(World world, int teamSize) throws IOException {
-        Events.populateDefaultEvents();
-        WallManager.WallMode mode = (teamSize == 2)
+    private void runGame(World world, int teamsize) throws IOException {
+        events.populateDefaultEvents();
+        WallManager.WallMode mode = (teamsize == 2)
                 ? WallManager.WallMode.X
                 : WallManager.WallMode.BOTH;
-        ProtectTheCore.zoneManager.setZones(buildZones(teamSize, mode, world), world);
+        zoneManager.setZones(buildZones(teamsize, mode, world), world);
         Set<Player> processed = new HashSet<>();
         int index = 0;
         plugin.getConfig().set("game.time_end", LocalDateTime.now().plusSeconds(plugin.getConfig().getInt("game.duration")).toString());
         plugin.saveConfig();
-        for (JSONObject obj : Teams.getTeamsConfig()) {
+        for (JSONObject obj : teams.getTeamsConfig()) {
             JSONArray members = (JSONArray) obj.get("members");
             if (members.isEmpty()) return;
-            Location base = zoneManager.getTeamSpawn(Teams.getTeamIndexFromPlayer(Bukkit.getOfflinePlayer(members.getJSONObject(0).getString("username")).getName()), world, wallManager);
-            Location coreLocation = zoneManager.getTeamCenter(Teams.getTeamIndexFromPlayer(Bukkit.getOfflinePlayer(members.getJSONObject(0).getString("username")).getName()), world);
-            if (findEntitiesWithKeyValue(findEntitiesWithKey(Bukkit.getWorld(new NamespacedKey(plugin, "ptcoverworld")), new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER), new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER, index).size() > 0) {
+            Location base = zoneManager.getTeamSpawn(teams.getTeamIndexFromPlayer(Bukkit.getOfflinePlayer(members.getJSONObject(0).getString("username")).getName()), world, wallManager);
+            Location coreLocation = zoneManager.getTeamCenter(teams.getTeamIndexFromPlayer(Bukkit.getOfflinePlayer(members.getJSONObject(0).getString("username")).getName()), world);
+            if (HelperFunctions.findEntitiesWithKeyValue(HelperFunctions.findEntitiesWithKey(Bukkit.getWorld(new NamespacedKey(plugin, "ptcoverworld")), new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER), new NamespacedKey(plugin, "team_core_id"), PersistentDataType.INTEGER, index).size() > 0) {
                 logger.warn("Core " + index + " already detected!");
             }
             else {
-                Cores.spawnCrystal(coreLocation.add(0,1,0), index, false);
+                cores.spawnCrystal(coreLocation.add(0,1,0), index, false);
             }
             for (Object memberObj : members) {
                 Player player = Bukkit.getPlayer(
                         ((JSONObject) memberObj).getString("username")
                 );
                 if (player == null || processed.contains(player)) continue;
-                if (GameScoreboard.bossBar != null) {
-                    GameScoreboard.bossBar.removeViewer(player);
+                if (gameScoreboard.getBossBar() != null) {
+                    gameScoreboard.getBossBar().removeViewer(player);
                 }
-                if (Objects.equals(Teams.getTeamLeader(Teams.getTeamIndexFromPlayer(player.getName())), player.getName())) {
-                    player.sendMessage(Component.text("As the team leader, you were given a crown.", NamedTextColor.GRAY));
-                    player.give(getCrown(Teams.getTeamIndexFromPlayer(player.getName()), player.getName()));
-                    // Cores.giveCore(Teams.getTeamIndexFromPlayer(player.getName()), player);
+                if (Objects.equals(teams.getTeamLeader(teams.getTeamIndexFromPlayer(player.getName())), player.getName())) {
+                    // player.sendMessage(Component.text("As the team leader, you were given a crown.", NamedTextColor.GRAY));
+                    // player.give(getCrown(teams.getTeamIndexFromPlayer(player.getName()), player.getName()));
+                    // Cores.giveCore(teams.getTeamIndexFromPlayer(player.getName()), player);
                 }
                 processed.add(player);
                 initScoreboard(player);
@@ -321,9 +364,9 @@ public class ProtectTheCoreGame {
             index++;
         }
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            ProtectTheCore.wallManager.setMode(mode);
-            List<ZoneManager.Zone> zones = buildZones(teamSize, mode, world);
-            ProtectTheCore.zoneManager.setZones(zones, world);
+            wallManager.setMode(mode);
+            List<ZoneManager.Zone> zones = buildZones(teamsize, mode, world);
+            zoneManager.setZones(zones, world);
             plugin.getConfig().set("game.started", true);
             plugin.getConfig().set("game.wall_mode", mode.name());
             plugin.getConfig().set("game.zones_enabled", true);
@@ -332,7 +375,7 @@ public class ProtectTheCoreGame {
         }, 20L);
     }
 
-    public static void initScoreboard(Player player) {
+    public void initScoreboard(Player player) {
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         Scoreboard scoreboard = manager.getNewScoreboard();
         Objective objective = scoreboard.registerNewObjective("ptcscoreboard", Criteria.DUMMY, Component.empty());
@@ -348,17 +391,17 @@ public class ProtectTheCoreGame {
         player.setScoreboard(scoreboard);
     }
 
-    private List<ZoneManager.Zone> buildZones(int teamSize, WallManager.WallMode mode, World world) {
+    private List<ZoneManager.Zone> buildZones(int teamsize, WallManager.WallMode mode, World world) {
         List<ZoneManager.Zone> zones = new ArrayList<>();
         double buffer = wallManager.getBufferSize();
         String worldType = world.getName().equals("ptcoverworld") ? "overworld" :
                 world.getName().equals("ptcnether") ? "nether" : "the_end";
         int borderSize = plugin.getConfig().getInt("config." + worldType + ".border", 1000);
         if (borderSize <= 0) {
-            ProtectTheCore.logger.warn("Border size for world " + world.getName() + " is invalid. Defaulting to 1000.");
+            logger.warn("Border size for world " + world.getName() + " is invalid. Defaulting to 1000.");
             borderSize = 1000;
         }
-        if (teamSize == 2) {
+        if (teamsize == 2) {
             zones.add(new ZoneManager.Zone(0, -borderSize, -borderSize, -buffer, borderSize));
             zones.add(new ZoneManager.Zone(1, buffer, -borderSize, borderSize, borderSize));
         } else {

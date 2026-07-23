@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
@@ -26,8 +27,10 @@ import java.util.List;
 public class TeamCreationMenu implements CustomMenuHolder {
 
     private final Inventory inventory;
+    private final ProtectTheCore plugin;
+    private final ComponentLogger logger;
 
-    public static JSONArray readTeamData() throws IOException {
+    public JSONArray readTeamData() throws IOException {
         try {
             Object obj = new JSONParser().parse(new FileReader("./plugins/ProtectTheCore/teams.json"));
             return (JSONArray) obj;
@@ -36,13 +39,15 @@ public class TeamCreationMenu implements CustomMenuHolder {
             return new JSONArray();
         } catch (ParseException e) {
             Files.writeString(Path.of("./plugins/ProtectTheCore/teams.json"), "{}");
-            ProtectTheCore.logger.error(Component.text("An unexpected error occurred while parsing the teams.json file.\n" + e, TextColor.color(255, 0, 0)));
+            logger.error(Component.text("An unexpected error occurred while parsing the teams.json file.\n" + e, TextColor.color(255, 0, 0)));
         }
         return new JSONArray();
     }
 
-    public TeamCreationMenu() {
-        this.inventory = ProtectTheCore.plugin.getServer().createInventory(this, 9, Component.text("ᴄʀᴇᴀᴛᴇ ᴀ ᴛᴇᴀᴍ"));
+    public TeamCreationMenu(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger) {
+        this.plugin = plugin;
+        this.logger = logger;
+        this.inventory = plugin.getServer().createInventory(this, 9, Component.text("ᴄʀᴇᴀᴛᴇ ᴀ ᴛᴇᴀᴍ"));
     }
 
     private int previousMaterial = 0;
@@ -190,7 +195,7 @@ public class TeamCreationMenu implements CustomMenuHolder {
         return pvpMode;
     }
 
-    public static ArrayList<Integer> getTeamColorsInt() {
+    public ArrayList<Integer> getTeamColorsInt() {
         ArrayList<Integer> teamColors = new ArrayList<>();
         teamColors.add(16733525);
         teamColors.add(15429908);

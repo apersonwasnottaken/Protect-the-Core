@@ -1,13 +1,25 @@
 package com.example.protectTheCore.core;
 
+import com.example.protectTheCore.ProtectTheCore;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.jetbrains.annotations.NotNull;
+
 import java.io.File;
 import java.io.IOException;
 
 public class EndToggle {
 
-    private final File bukkitConfigFile = new File(Bukkit.getServer().getWorldContainer().getParentFile(), "bukkit.yml");
+    private final ProtectTheCore plugin;
+    private final ComponentLogger logger;
+    private final File bukkitConfigFile;
+
+    public EndToggle(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger) {
+        this.plugin = plugin;
+        this.logger = logger;
+        this.bukkitConfigFile = new File(plugin.getServer().getWorldContainer().getParentFile(), "bukkit.yml");
+    }
 
     public boolean isEndEnabled() {
         if (!bukkitConfigFile.exists()) return true; // Default fallback
@@ -27,7 +39,7 @@ public class EndToggle {
             config.save(bukkitConfigFile);
             return true;
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error(e.toString());
             return false;
         }
     }

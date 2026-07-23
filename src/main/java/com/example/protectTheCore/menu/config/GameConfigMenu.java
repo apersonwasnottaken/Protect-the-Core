@@ -3,19 +3,21 @@ package com.example.protectTheCore.menu.config;
 import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.menu.CustomMenuHolder;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 public class GameConfigMenu implements CustomMenuHolder {
     private final Inventory inventory;
     private String durationDisp = "0d 0h0m0s";
+    private final ProtectTheCore plugin;
 
-    public GameConfigMenu(ProtectTheCore plugin) {
+    public GameConfigMenu(@NotNull ProtectTheCore plugin) {
+        this.plugin = plugin;
         this.inventory = plugin.getServer().createInventory(this, 36, Component.text("ɢᴀᴍᴇ ᴄᴏɴꜰɪɢ"));
     }
 
@@ -26,30 +28,6 @@ public class GameConfigMenu implements CustomMenuHolder {
 
     public void setDurationDisp(String input) {
         durationDisp = input;
-    }
-
-    public static int parseDuration(String duration) {
-        try {
-            int days = 0, hours = 0, minutes = 0, seconds = 0;
-            if (duration.contains("d")) {
-                days = Integer.parseInt(duration.substring(0, duration.indexOf('d')));
-            }
-            if (duration.contains("h")) {
-                hours = Integer.parseInt(duration.substring(duration.indexOf('d') < 0 ? 0 : duration.indexOf('d') + 1, duration.indexOf('h')));
-            }
-            if (duration.contains("m")) {
-                minutes = Integer.parseInt(duration.substring(duration.indexOf('h') < 0 ? 0 : duration.indexOf('h') + 1, duration.indexOf('m')));
-            }
-            if (duration.contains("s")) {
-                seconds = Integer.parseInt(duration.substring(duration.indexOf('m') < 0 ? 0 : duration.indexOf('m') + 1, duration.indexOf('s')));
-            }
-            return seconds * 20 + minutes * 20 * 60 + hours * 20 * 60 * 60 + days * 20 * 60 * 60 * 24;
-        }
-        catch (Exception e) {
-            ProtectTheCore.logger.error("There was an error while parsing the duration.");
-            ProtectTheCore.logger.error(e.toString());
-            return -1;
-        }
     }
 
     @Override

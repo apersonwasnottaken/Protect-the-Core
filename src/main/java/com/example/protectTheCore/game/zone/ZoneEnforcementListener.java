@@ -1,6 +1,8 @@
 package com.example.protectTheCore.game.zone;
 
 import com.example.protectTheCore.ProtectTheCore;
+import com.example.protectTheCore.game.wall.WallManager;
+import com.example.protectTheCore.helper.HelperFunctions;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
@@ -11,15 +13,18 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 
 public class ZoneEnforcementListener implements Listener {
 
     private final ZoneManager zoneManager;
+    private final WallManager wallManager;
 
-    public ZoneEnforcementListener(ZoneManager zoneManager) {
+    public ZoneEnforcementListener(@NotNull ZoneManager zoneManager, @NotNull WallManager wallManager) {
         this.zoneManager = zoneManager;
+        this.wallManager = wallManager;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -50,12 +55,11 @@ public class ZoneEnforcementListener implements Listener {
         try {
             homeZone = zoneManager.getHomeZone(player.getName());
         } catch (IOException e) {
-
             return;
         }
         if (homeZone == null) return;
         if (currentZone.teamIndex() == homeZone.teamIndex()) return;
-        Location home = zoneManager.getTeamSpawn(homeZone.teamIndex(), target.getWorld(), ProtectTheCore.wallManager);
+        Location home = zoneManager.getTeamSpawn(homeZone.teamIndex(), target.getWorld(), wallManager);
         player.teleport(home);
         player.sendMessage(Component.text(
                 "You can't enter another team's zone!", NamedTextColor.RED));

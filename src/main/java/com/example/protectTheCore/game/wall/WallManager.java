@@ -1,27 +1,30 @@
 package com.example.protectTheCore.game.wall;
 
+import com.example.protectTheCore.ProtectTheCore;
+import com.example.protectTheCore.game.ProtectTheCoreGame;
+import com.example.protectTheCore.helper.HelperFunctions;
+import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
 import com.github.retrooper.packetevents.util.Vector3i;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
-import org.bukkit.Location;
-import org.bukkit.World;
+import org.bukkit.*;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static com.example.protectTheCore.ProtectTheCore.logger;
-import static com.example.protectTheCore.ProtectTheCore.plugin;
+import static com.example.protectTheCore.ProtectTheCore.*;
 
 public class WallManager {
 
@@ -30,14 +33,18 @@ public class WallManager {
     private WallMode currentMode = WallMode.NONE;
     private final Set<String> enabledWorlds = new HashSet<>();
     private int bufferSize = 1;
+    private ProtectTheCore plugin;
+    private ComponentLogger logger;
 
     private final int wallGlobalId;
     private final int airGlobalId;
 
-    public WallManager(Plugin plugin) {
+    public WallManager(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger) {
         this.wallGlobalId = StateTypes.BEDROCK.createBlockState().getGlobalId();
         this.airGlobalId = StateTypes.AIR.createBlockState().getGlobalId();
         loadWorldsFromConfig(plugin);
+        this.plugin = plugin;
+        this.logger = logger;
     }
 
     public void loadWorldsFromConfig(Plugin plugin) {
@@ -135,7 +142,8 @@ public class WallManager {
                             nmsPlayer.connection.send(pkt);
                         }
                     } catch (Exception e) {
-                        logger.warn("[Wall Protector] refreshWallForPlayer NMS failed for {}: {}", player.getName(), e.getMessage());
+                        HelperFunctions.sendErrorMessage(player, e);
+                        logger.warn("[Wall Protector] Wall refresh NMS failed for {}: {}", player.getName(), e.getMessage());
                     }
                 }
             }.runTaskLater(plugin, 1L);
@@ -170,6 +178,37 @@ public class WallManager {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
+    private void refreshWallForPlayer(Player player, StateType material) {
+        World world = player.getWorld();
+        int minSection = world.getMinHeight() >> 4;
+        int maxSection = world.getMaxHeight() >> 4;
+        List<Chunk> axisChunks = new ArrayList<>();
+        for (Chunk loadedChunk : world.getLoadedChunks()) {
+            int cx = loadedChunk.getX();
+            int cz = loadedChunk.getZ();
+            if (isWallChunk(cx, cz, WallMode.BOTH)) {
+                axisChunks.add(loadedChunk);
+            }
+        }
+
+        new BukkitRunnable() {
+            final List<int[]> work = buildSectionWorkList(axisChunks, minSection, maxSection);
+            int index = 0;
+            @Override
+            public void run() {
+                if (!player.isOnline() || index >= work.size()) {
+                    this.cancel();
+                    return;
+                }
+                int batchSize = 16;
+                for (int i = 0; i < batchSize && index < work.size(); i++, index++) {
+                    int[] entry = work.get(index);
+                    updateChunkSectionVisual(player, entry[0], entry[1], entry[2], material);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
     private List<int[]> buildSectionWorkList(List<Chunk> chunks, int minSection, int maxSection) {
         List<int[]> list = new ArrayList<>();
         for (Chunk chunk : chunks) {
@@ -194,6 +233,39 @@ public class WallManager {
                         || (mode == WallMode.NONE && isWallChunk(cx, cz, WallMode.BOTH));
                 if (shouldPaint) {
                     int targetBlockId = (mode != WallMode.NONE && isWallNow) ? wallGlobalId : airGlobalId;
+                    for (int y = 0; y < 16; y++) {
+                        encoded.add(new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange.EncodedBlock(
+                                targetBlockId, x, y, z
+                        ));
+                    }
+                }
+            }
+        }
+        if (encoded.isEmpty()) return;
+        com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange packet =
+                new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange(
+                        new Vector3i(cx, sectionY, cz),
+                        true,
+                        encoded.toArray(new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange.EncodedBlock[0])
+                );
+        com.github.retrooper.packetevents.PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
+    }
+
+    public void updateChunkSectionVisual(Player player, int cx, int cz, int sectionY, StateType material) {
+        int minChunk = (-bufferSize) >> 4;
+        int maxChunk = (bufferSize - 1) >> 4;
+        boolean chunkHasXWall = (cx >= minChunk && cx <= maxChunk && getCurrentMode() != WallMode.Z);
+        boolean chunkHasZWall = (cz >= minChunk && cz <= maxChunk && getCurrentMode() != WallMode.X);
+        if (getCurrentMode() != WallMode.NONE && !chunkHasXWall && !chunkHasZWall) return;
+        List<com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange.EncodedBlock> encoded = new ArrayList<>();
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                boolean isWallNow = isWallBlock(cx, cz, x, z, getCurrentMode());
+                boolean shouldPaint = isWallNow
+                        || (getCurrentMode() == WallMode.NONE && isWallChunk(cx, cz, WallMode.BOTH));
+                if (shouldPaint) {
+                    int materialGlobalId = material.createBlockState().getGlobalId();
+                    int targetBlockId = (getCurrentMode() != WallMode.NONE && isWallNow) ? materialGlobalId : airGlobalId;
                     for (int y = 0; y < 16; y++) {
                         encoded.add(new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange.EncodedBlock(
                                 targetBlockId, x, y, z

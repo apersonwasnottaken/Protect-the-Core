@@ -11,7 +11,6 @@ import org.bukkit.Location;
 import org.bukkit.World;
 
 public class WorldGuardHook {
-
     public static void createShopRegion(World world, Location minLoc, Location maxLoc, String regionId) {
         RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
         RegionManager regions = container.get(BukkitAdapter.adapt(world));

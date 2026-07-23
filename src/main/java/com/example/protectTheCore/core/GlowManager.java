@@ -1,5 +1,8 @@
 package com.example.protectTheCore.core;
 
+import com.example.protectTheCore.ProtectTheCore;
+import com.example.protectTheCore.menu.teams.TeamCreationMenu;
+import com.example.protectTheCore.menu.teams.TeamsMenu;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTeams;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTeams.TeamMode;
@@ -20,6 +23,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,22 +31,23 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 
-import static com.example.protectTheCore.core.Teams.getTeamColor;
-import static com.example.protectTheCore.menu.teams.TeamCreationMenu.getTeamColorsInt;
-
 public final class GlowManager implements Listener {
 
-    private final JavaPlugin plugin;
+    private final ProtectTheCore plugin;
+    private final Teams teams;
+    private final TeamCreationMenu teamCreationMenu;
 
-    public GlowManager(JavaPlugin plugin) {
+    public GlowManager(@NotNull ProtectTheCore plugin, @NotNull TeamCreationMenu teamCreationMenu) {
         this.plugin = plugin;
-        Bukkit.getPluginManager().registerEvents(this, plugin);
+        this.teams = plugin.getTeams();
+        this.teamCreationMenu = teamCreationMenu;
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
         refreshAllOnlinePlayers();
     }
 
     public void shutdown() {
-        for (Player target : Bukkit.getOnlinePlayers()) {
-            for (Player receiver : Bukkit.getOnlinePlayers()) {
+        for (Player target : plugin.getServer().getOnlinePlayers()) {
+            for (Player receiver : plugin.getServer().getOnlinePlayers()) {
                 sendTeamPacket(receiver, target, TeamAction.REMOVE);
             }
         }
@@ -51,7 +56,7 @@ public final class GlowManager implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         refreshViewer(event.getPlayer());
-        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+        for (Player onlinePlayer : plugin.getServer().getOnlinePlayers()) {
             if (!onlinePlayer.equals(event.getPlayer())) {
                 refreshViewer(onlinePlayer);
             }
@@ -61,25 +66,25 @@ public final class GlowManager implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player quittingPlayer = event.getPlayer();
-        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+        for (Player onlinePlayer : plugin.getServer().getOnlinePlayers()) {
             sendTeamPacket(onlinePlayer, quittingPlayer, TeamAction.REMOVE);
         }
     }
 
     @EventHandler
     public void onHandSwap(PlayerSwapHandItemsEvent event) {
-        Bukkit.getScheduler().runTask(plugin, () -> refreshViewer(event.getPlayer()));
+        plugin.getServer().getScheduler().runTask(plugin, () -> refreshViewer(event.getPlayer()));
     }
 
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
-        Bukkit.getScheduler().runTask(plugin, () -> refreshViewer(event.getPlayer()));
+        plugin.getServer().getScheduler().runTask(plugin, () -> refreshViewer(event.getPlayer()));
     }
 
     public void refreshViewer(Player viewer) {
         boolean hasDebugStickInOffhand = viewer.getInventory().getItemInOffHand().getType() == Material.DEBUG_STICK;
 
-        for (Player target : Bukkit.getOnlinePlayers()) {
+        for (Player target : plugin.getServer().getOnlinePlayers()) {
             if (viewer.equals(target)) continue;
 
             if (hasDebugStickInOffhand) {
@@ -96,21 +101,21 @@ public final class GlowManager implements Listener {
     }
 
     public void refreshAllOnlinePlayers() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
             refreshViewer(player);
         }
     }
 
     private void checkAndCleanGlobalGlow() {
         boolean anybodyHoldingStick = false;
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : plugin.getServer().getOnlinePlayers()) {
             if (p.getInventory().getItemInOffHand().getType() == Material.DEBUG_STICK) {
                 anybodyHoldingStick = true;
                 break;
             }
         }
         if (!anybodyHoldingStick) {
-            for (Player p : Bukkit.getOnlinePlayers()) {
+            for (Player p : plugin.getServer().getOnlinePlayers()) {
                 if (p.isGlowing()) p.setGlowing(false);
             }
         }
@@ -158,7 +163,6 @@ public final class GlowManager implements Listener {
     }
 
     private NamedTextColor getTeamDyeColor(Player player) {
-
         ArrayList<NamedTextColor> dyeColors = new ArrayList<>();
         dyeColors.add(NamedTextColor.RED);
         dyeColors.add(NamedTextColor.GOLD);
@@ -178,17 +182,14 @@ public final class GlowManager implements Listener {
 
         int idx = 0;
         try {
-            idx = Teams.getTeamIndexFromPlayer(player.getName());
+            idx = teams.getTeamIndexFromPlayer(player.getName());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            // throw new RuntimeException(e);
         }
 
         if (idx < 0) return null;
 
-        return dyeColors.get(
-                getTeamColorsInt().indexOf(
-                        getTeamColor(idx)
-                )
+        return dyeColors.get(teamCreationMenu.getTeamColorsInt().indexOf(teams.getTeamColor(idx))
         );
     }
 }

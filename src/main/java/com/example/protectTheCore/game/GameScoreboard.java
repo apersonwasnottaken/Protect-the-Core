@@ -1,18 +1,16 @@
 package com.example.protectTheCore.game;
 
+import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.core.Teams;
+import com.example.protectTheCore.helper.HelperFunctions;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
-import org.bukkit.NamespacedKey;
-import org.bukkit.World;
-import org.bukkit.entity.Entity;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Boss;
 import org.bukkit.entity.Player;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scoreboard.*;
 
 import java.io.IOException;
@@ -20,80 +18,62 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
-
-import static com.example.protectTheCore.ProtectTheCore.afterWallsListener;
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-import static com.example.protectTheCore.game.Cores.coreHealthMap;
-import static com.example.protectTheCore.game.Cores.getHealthbarComponent;
-import static com.example.protectTheCore.core.Teams.getTeamColor;
-import static com.example.protectTheCore.game.Events.getEvents;
-import static com.example.protectTheCore.game.Events.saveEvents;
 
 public class GameScoreboard {
 
-    public static BossBar bossBar = BossBar.bossBar(
-            MiniMessage.miniMessage().deserialize("<white>Time left: </white><red>" + parseTimeLeft(plugin.getConfig().getInt("game.duration") - plugin.getConfig().getInt("game.time_left")) + "</red>"),
-            Math.min(1, Math.max(0, ((float) plugin.getConfig().getInt("game.time_left")) / ((float) plugin.getConfig().getInt("game.duration")))),
-            BossBar.Color.RED,
-            BossBar.Overlay.NOTCHED_20
-    );
+    private final FileConfiguration config;
+    private final Teams teams;
+    private final Events events;
+    private BossBar bossBar;
 
-    public static int getTimer() {
-        if (LocalDateTime.now().isAfter(LocalDateTime.parse(Objects.requireNonNull(plugin.getConfig().getString("game.time_end"))))) {
+    public GameScoreboard(@NotNull FileConfiguration config, @NotNull Teams teams, @NotNull Events events) {
+        this.config = config;
+        this.teams = teams;
+        this.events = events;
+        this.bossBar = BossBar.bossBar(
+                MiniMessage.miniMessage().deserialize("<white>Time left: </white><red>" + HelperFunctions.parseTimeLeft(config.getInt("game.duration") - config.getInt("game.time_left")) + "</red>"),
+                Math.min(1, Math.max(0, ((float) config.getInt("game.time_left")) / ((float) config.getInt("game.duration")))),
+                BossBar.Color.RED,
+                BossBar.Overlay.NOTCHED_20
+        );
+    }
+
+    public BossBar getBossBar() {
+        return bossBar;
+    }
+
+    public int getTimer() {
+        if (LocalDateTime.now().isAfter(LocalDateTime.parse(Objects.requireNonNull(config.getString("game.time_end"))))) {
             return -1;
         }
-        return Math.toIntExact(Duration.between(LocalDateTime.now(), LocalDateTime.parse(Objects.requireNonNull(plugin.getConfig().getString("game.time_end")))).toSeconds());
+        return Math.toIntExact(Duration.between(LocalDateTime.now(), LocalDateTime.parse(Objects.requireNonNull(config.getString("game.time_end")))).toSeconds());
     }
 
-    public static String parseTimeLeft(int timeLeft) {
-        int days = 60 * 60 * 24, hours = 60 * 60, minutes = 60, seconds = 1;
-        int totalDays = 0, totalHours = 0, totalMinutes = 0, totalSeconds = 0;
-        int i = timeLeft;
-        while (i > days) {
-            totalDays++;
-            i = i - days;
-        }
-        while (i > hours) {
-            totalHours++;
-            i = i - hours;
-        }
-        while (i > minutes) {
-            totalMinutes++;
-            i = i - minutes;
-        }
-        while (i > seconds) {
-            totalSeconds++;
-            i = i - seconds;
-        }
-        return totalDays + "d " + totalHours + "h " + totalMinutes + "m " + totalSeconds + "s";
-    }
-
-    public static void sendPtcBossbar(Player player, int timer, BossBar bossBar) {
+    public void sendPtcBossbar(Player player, int timer, BossBar bossBar) {
         if (timer > 0) {
-            Duration duration = Duration.between(LocalDateTime.now(), LocalDateTime.parse(plugin.getConfig().getString("game.time_end")));
+            Duration duration = Duration.between(LocalDateTime.now(), LocalDateTime.parse(config.getString("game.time_end")));
             Component event = MiniMessage.miniMessage().deserialize(String.format("<yellow>Walls collapse<white>:%02d:%02d:%02d", duration.toHours(),
                     duration.toMinutesPart(),
                     duration.toSecondsPart()));
-            for (JSONObject obj : getEvents()) {
-                if (!LocalDateTime.parse(obj.getString("duration")).isAfter(LocalDateTime.now())) {
-                    continue;
-                }
-                duration = Duration.between(LocalDateTime.now(), LocalDateTime.parse(obj.getString("duration")));
-                String eventString = String.format("<yellow>%s<white>: %02d:%02d:%02d",
-                        obj.get("name"),
-                        duration.toHours(),
-                        duration.toMinutesPart(),
-                        duration.toSecondsPart());
-                event = MiniMessage.miniMessage().deserialize(eventString);
-                break;
+            JSONObject nextEvent = events.getNextEvent();
+            if (nextEvent == null) {
+                bossBar.name(MiniMessage.miniMessage().deserialize("<white>The walls are down! Go fight!"));
+                bossBar.progress(1);
+                return;
             }
+            duration = Duration.between(LocalDateTime.now(), LocalDateTime.parse(nextEvent.getString("duration")));
+            String eventString = String.format("<yellow>%s<white>: %02d:%02d:%02d",
+                    nextEvent.get("name"),
+                    duration.toHours(),
+                    duration.toMinutesPart(),
+                    duration.toSecondsPart());
+            event = MiniMessage.miniMessage().deserialize(eventString);
             bossBar.name(event);
-            bossBar.progress(Math.max(0, Math.min(1, ((float) timer) / ((float) plugin.getConfig().getInt("game.duration")))));
+            bossBar.progress(Math.max(0, Math.min(1, ((float) timer) / ((float) config.getInt("game.duration")))));
         }
         else {
             bossBar.name(MiniMessage.miniMessage().deserialize("<white>The walls are down! Go fight!"));
@@ -103,8 +83,8 @@ public class GameScoreboard {
         player.showBossBar(bossBar);
     }
 
-    public static void sendPtcScoreboard(Player player, int timer) throws IOException {
-        if (!plugin.getConfig().getList("enabled-worlds").contains(player.getWorld().getName())) return;
+    public void sendPtcScoreboard(Player player, int timer) throws IOException {
+        if (!config.getList("enabled-worlds").contains(player.getWorld().getName())) return;
 
         Scoreboard scoreboard = player.getScoreboard();
         Objective objective = scoreboard.getObjective("ptcscoreboard");
@@ -131,8 +111,9 @@ public class GameScoreboard {
         scoreboardLines.add(Component.text(""));
         Component event = MiniMessage.miniMessage().deserialize("<white>Event soon!");
         try {
-            saveEvents();
+            events.saveEvents();
         } catch (Exception e) {
+            HelperFunctions.sendErrorMessage(player, e);
             throw new RuntimeException(e);
         }
         /*
@@ -162,10 +143,11 @@ public class GameScoreboard {
          */
         scoreboardLines.add(Component.text("Teammates:", NamedTextColor.AQUA));
 
-        Teams.getTeamMembers(Teams.getTeamIndexFromPlayer(player.getName())).forEach(obj -> {
+        teams.getTeamMembers(teams.getTeamIndexFromPlayer(player.getName())).forEach(obj -> {
             try {
-                scoreboardLines.add(Component.text("    " + ((JSONObject) obj).getString("username") + (!Bukkit.getOfflinePlayer(((JSONObject) obj).getString("username")).isOnline() ? " (Offline)" : "") + (Teams.getTeamLeader(Teams.getTeamIndexFromPlayer(player.getName())).equals(((JSONObject) obj).getString("username")) ? " [LEADER]" : ""), Bukkit.getOfflinePlayer(((JSONObject) obj).getString("username")).isOnline() ? NamedTextColor.GREEN : NamedTextColor.GRAY));
+                scoreboardLines.add(Component.text("    " + ((JSONObject) obj).getString("username") + (!Bukkit.getOfflinePlayer(((JSONObject) obj).getString("username")).isOnline() ? " (Offline)" : "") + (teams.getTeamLeader(teams.getTeamIndexFromPlayer(player.getName())).equals(((JSONObject) obj).getString("username")) ? " [LEADER]" : ""), Bukkit.getOfflinePlayer(((JSONObject) obj).getString("username")).isOnline() ? NamedTextColor.GREEN : NamedTextColor.GRAY));
             } catch (IOException e) {
+                HelperFunctions.sendErrorMessage(player, e);
                 throw new RuntimeException(e);
             }
         });
@@ -196,23 +178,5 @@ public class GameScoreboard {
                 scoreboard.resetScores(entryKey);
             }
         }
-    }
-
-    public static List<Entity> findEntitiesWithKey(World world, NamespacedKey key, PersistentDataType persistentDataType) {
-        return world.getEntities().stream()
-                .filter(entity -> entity.getPersistentDataContainer().has(key, persistentDataType))
-                .collect(Collectors.toList());
-    }
-
-    public static List<Entity> findEntitiesWithKeyValue(List<Entity> entities, NamespacedKey key, PersistentDataType persistentDataType, Object value) {
-        return entities.stream()
-                .filter(entity -> {
-                    if (!entity.getPersistentDataContainer().has(key, persistentDataType)) {
-                        return false;
-                    }
-                    Object containerValue = entity.getPersistentDataContainer().get(key, persistentDataType);
-                    return Objects.equals(containerValue, value);
-                })
-                .collect(Collectors.toList());
     }
 }

@@ -3,6 +3,7 @@ package com.example.protectTheCore.core;
 import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.helper.WorldGuardHook;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.structure.Mirror;
@@ -18,23 +19,29 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.structure.Structure;
 import org.bukkit.structure.StructureManager;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.InputStream;
 import java.util.*;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 public class EndShop {
-    public static void spawnEndShop(Player player, Location loc) {
-        StructureManager structureManager = Bukkit.getStructureManager();
+
+    private final ProtectTheCore plugin;
+    private final ComponentLogger logger;
+
+    public EndShop(@NotNull ProtectTheCore plugin, @NotNull ComponentLogger logger) {
+        this.plugin = plugin;
+        this.logger = logger;
+    }
+    public void spawnEndShop(Player player, Location loc) {
+        loc.getWorld().getEntities().stream().filter(entity -> entity.getPersistentDataContainer().has(new NamespacedKey(plugin, "end_trader"))).forEach(Entity::remove);
+        StructureManager structureManager = plugin.getServer().getStructureManager();
         try (InputStream is = plugin.getResource("purpul.nbt")) {
             if (is == null) {
                 player.sendMessage("Structure file not found.");
                 return;
             }
-
             Structure structure = structureManager.loadStructure(is);
-
             structure.place(
                     loc,
                     true,
@@ -44,37 +51,31 @@ public class EndShop {
                     1.0F,
                     new Random()
             );
-
             spawnShopNPC(loc.clone().add(5.5, 2, 3.5));
-
-            if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
-                Location minBound = new Location(loc.getWorld(), -5, (Objects.requireNonNull(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) - 3), -20);
-                Location maxBound = new Location(loc.getWorld(), 5, (Objects.requireNonNull(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) + 2), -8);
-
+            if (plugin.getServer().getPluginManager().isPluginEnabled("WorldGuard")) {
+                Location minBound = loc.clone().add(0, -3, 0);
+                Location maxBound = loc.clone().add(0, 2, 12);
                 WorldGuardHook.createShopRegion(loc.getWorld(), minBound, maxBound, "end_shop");
             } else {
-                ProtectTheCore.logger.warn("WorldGuard was not detected! Unable to protect the end shop.");
+                logger.warn("WorldGuard was not detected! Unable to protect the end shop.");
             }
-
             player.sendMessage("Structure spawned!");
 
         } catch (Exception e) {
-            ProtectTheCore.logger.error(e.getMessage());
+            logger.error(e.getMessage());
             player.sendMessage("Failed to load or place the structure.");
         }
     }
 
-    public static void spawnEndShop(Location loc) {
+    public void spawnEndShop(Location loc) {
         loc.getWorld().getEntities().stream().filter(entity -> entity.getPersistentDataContainer().has(new NamespacedKey(plugin, "end_trader"))).forEach(Entity::remove);
-        StructureManager structureManager = Bukkit.getStructureManager();
+        StructureManager structureManager = plugin.getServer().getStructureManager();
         try (InputStream is = plugin.getResource("purpul.nbt")) {
             if (is == null) {
-                ProtectTheCore.logger.warn("Structure file not found.");
+                logger.warn("Structure file not found.");
                 return;
             }
-
             Structure structure = structureManager.loadStructure(is);
-
             structure.place(
                     loc,
                     true,
@@ -84,23 +85,20 @@ public class EndShop {
                     1.0F,
                     new Random()
             );
-
             spawnShopNPC(loc.clone().add(5.5, 2, 3.5));
-
-            if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
-                Location minBound = loc.clone().add(-5, (Objects.requireNonNull(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) - 3), -20);
-                Location maxBound = loc.clone().add(5, (Objects.requireNonNull(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) + 2), -8);
+            if (plugin.getServer().getPluginManager().isPluginEnabled("WorldGuard")) {
+                Location minBound = loc.clone().add(0, -3, 0);
+                Location maxBound = loc.clone().add(0, 2, 12);
                 WorldGuardHook.createShopRegion(loc.getWorld(), minBound, maxBound, "end_shop");
             } else {
-                ProtectTheCore.logger.warn("WorldGuard was not detected! Unable to protect the end shop.");
+                logger.warn("WorldGuard was not detected! Unable to protect the end shop.");
             }
-
         } catch (Exception e) {
-            ProtectTheCore.logger.error(e.toString());
+            logger.error(e.toString());
         }
     }
 
-    public static void spawnShopNPC(Location location) {
+    public void spawnShopNPC(Location location) {
         WanderingTrader trader = (WanderingTrader) location.getWorld().spawnEntity(location, EntityType.WANDERING_TRADER);
         trader.setAI(false);
         trader.setDespawnDelay(-1);

@@ -1,7 +1,7 @@
 package com.example.protectTheCore.game;
 
-
-import net.kyori.adventure.text.Component;
+import com.example.protectTheCore.helper.PluginData;
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -12,41 +12,42 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Objects;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 // Just decorative for the scoreboard
 public class Events {
-    private static ArrayList<JSONObject> events = new ArrayList<>();
+    private ArrayList<JSONObject> events = new ArrayList<>();
+    private PluginData pluginData;
 
-    public static void parseEvents() throws IOException {
+    public Events (@NotNull PluginData pluginData) {
+        this.pluginData = pluginData;
+    }
+
+    public void parseEvents() throws IOException {
         events.clear();
         try {
-            JSONArray teamsData = new JSONArray(Files.readString(Path.of("./plugins/ProtectTheCore/events.json")));
+            JSONArray teamsData = new JSONArray(pluginData.getEntry("events"));
             teamsData.forEach(obj -> events.add((JSONObject) obj));
         } catch (Exception e) {
             events = new ArrayList<>();
         }
     }
 
-    public static ArrayList<JSONObject> getEvents() {
+    public ArrayList<JSONObject> getEvents() {
         return events;
     }
 
-    public static void setEvents(ArrayList<JSONObject> config) {
+    public void setEvents(ArrayList<JSONObject> config) {
         events = config;
     }
 
-    public static void saveEvents() throws Exception {
+    public void saveEvents() throws Exception {
         JSONArray combinedData = new JSONArray();
         for (JSONObject jsonObject : events) {
             combinedData.put(jsonObject);
         }
-        JSONObject combineData = new JSONObject();
-        combineData.put("events", combinedData);
-        Files.writeString(Path.of("./plugins/ProtectTheCore/events.json"), combinedData.toString());
+        pluginData.putEntry("events", combinedData);
     }
 
-    public static void putEvent(String eventName, String duration) {
+    public void putEvent(String eventName, String duration) {
         JSONObject event = new JSONObject();
         event.put("name", eventName);
         event.put("duration", duration);
@@ -58,15 +59,15 @@ public class Events {
         }
     }
 
-    public static String getName(int eventIdx) {
+    public String getName(int eventIdx) {
         return events.get(eventIdx).getString("name");
     }
 
-    public static String getDuration(int eventIdx) {
+    public String getDuration(int eventIdx) {
         return events.get(eventIdx).getString("duration");
     }
 
-    public static int getEventFromName(String eventName) {
+    public int getEventFromName(String eventName) {
         for (int i = 0; i < events.size(); i++) {
             if (Objects.equals(getName(i), eventName)) {
                 return i;
@@ -75,7 +76,7 @@ public class Events {
         return -1;
     }
 
-    public static LocalDateTime getEventStart(String eventName) {
+    public LocalDateTime getEventStart(String eventName) {
         try {
             parseEvents();
         } catch (IOException e) {
@@ -87,9 +88,19 @@ public class Events {
         return LocalDateTime.parse(events.get(getEventFromName(eventName)).getString("duration"));
     }
 
-    public static void populateDefaultEvents() {
-        putEvent("The End opens", LocalDateTime.now().plusDays(1).toString());
-        putEvent("The Awakening", LocalDateTime.now().plusDays(5).toString());
-        putEvent("Base building event", LocalDateTime.parse(Objects.requireNonNull(plugin.getConfig().getString("game.time_end"))).minusHours(4).toString());
+    public void populateDefaultEvents() {
+        events.clear();
+        putEvent("Election", LocalDateTime.now().plusDays(1).toString());
+        putEvent("The Awakening", LocalDateTime.now().plusDays(4).toString());
+    }
+
+    public JSONObject getNextEvent() {
+        for (JSONObject obj : events) {
+            if (!LocalDateTime.parse(obj.getString("duration")).isAfter(LocalDateTime.now())) {
+                continue;
+            }
+            return obj;
+        }
+        return null;
     }
 }

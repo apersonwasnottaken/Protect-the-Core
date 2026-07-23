@@ -1,5 +1,6 @@
 package com.example.protectTheCore.menu.supplydrops;
 
+import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.game.supplydrops.SupplyDrop;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -21,8 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 public class ManageSupplyDropMenu implements InventoryHolder {
 
     private Inventory inventory;
@@ -30,6 +29,15 @@ public class ManageSupplyDropMenu implements InventoryHolder {
     private int previousMaterial = 0;
     private String time;
     private Location location;
+    private final ProtectTheCore plugin;
+    private final SupplyDrop supplyDrop;
+    private final SupplyDropCreationMenu supplyDropCreationMenu;
+
+    public ManageSupplyDropMenu(@NotNull ProtectTheCore plugin, @NotNull SupplyDrop supplyDrop, @NotNull SupplyDropCreationMenu supplyDropCreationMenu) {
+        this.plugin = plugin;
+        this.supplyDrop = supplyDrop;
+        this.supplyDropCreationMenu = supplyDropCreationMenu;
+    }
 
     public void setTime(String time) {
         this.time = time;
@@ -44,7 +52,7 @@ public class ManageSupplyDropMenu implements InventoryHolder {
     }
 
     public Inventory getContents() {
-        Inventory contents = Bukkit.createInventory(null, 27);
+        Inventory contents = plugin.getServer().createInventory(null, 27);
         for (int i = 0; i < 27; i++) {
             if (inventory == null) continue;
             contents.setItem(i, inventory.getItem(i));
@@ -54,21 +62,19 @@ public class ManageSupplyDropMenu implements InventoryHolder {
 
     @Override
     public @NotNull Inventory getInventory() {
-        location = SupplyDrop.getLocation(supplyDropIdx);
-        time = SupplyDrop.getTime(supplyDropIdx);
+        location = supplyDrop.getLocation(supplyDropIdx);
+        time = supplyDrop.getTime(supplyDropIdx);
         this.inventory = plugin.getServer().createInventory(this, 36, Component.text("ᴍᴀɴᴀɢᴇ ꜱᴜᴘᴘʟʏ ᴅʀᴏᴘ"));
         try {
-            JSONArray supplyDropData = SupplyDropCreationMenu.readSupplyDropData();
+            JSONArray supplyDropData = supplyDropCreationMenu.readSupplyDropData();
             JSONObject selectedSupplyDrop = (JSONObject) supplyDropData.get(supplyDropIdx);
             setPreviousMaterial(SupplyDrop.getContainersListString().indexOf(selectedSupplyDrop.get("container").toString()));
             final int[] idx = {0};
-            for (ItemStack itemStack : SupplyDrop.getInventory(supplyDropIdx)) {
+            for (ItemStack itemStack : supplyDrop.getInventory(supplyDropIdx)) {
                 this.inventory.setItem(idx[0], itemStack);
                 idx[0] = idx[0] + 1;
             }
-
-            SupplyDropCreationMenu teamCreationMenu = new SupplyDropCreationMenu();
-            teamCreationMenu.resetPreviousMaterial();
+            supplyDropCreationMenu.resetPreviousMaterial();
             ItemStack blankGrayStainedGlassPane = ItemStack.of(Material.GRAY_STAINED_GLASS_PANE);
             blankGrayStainedGlassPane.editMeta(meta -> meta.displayName(MiniMessage.miniMessage().deserialize("<italic:false>")));
             ItemStack back = ItemStack.of(Material.SPECTRAL_ARROW);

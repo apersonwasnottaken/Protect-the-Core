@@ -2,6 +2,8 @@ package com.example.protectTheCore;
 
 import com.example.protectTheCore.game.Cores;
 import com.example.protectTheCore.core.EndShop;
+import com.example.protectTheCore.game.Events;
+import com.example.protectTheCore.game.events.ElectionEvent;
 import com.example.protectTheCore.helper.HelperFunctions;
 import com.example.protectTheCore.helper.WorldGenerator;
 import com.example.protectTheCore.game.ProtectTheCoreGame;
@@ -24,31 +26,66 @@ import io.papermc.paper.plugin.lifecycle.event.LifecycleEventManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 
-import static com.example.protectTheCore.ProtectTheCore.*;
-import static org.bukkit.Bukkit.getServer;
-
 public class CommandRegistration {
-    public static void registerCommand(LifecycleEventManager<Plugin> lifecycleEventManager) {
+
+    private final ProtectTheCore plugin;
+    private final FileConfiguration config;
+    private final ComponentLogger logger;
+    private final EndShop endShop;
+    private final SupplyDrop supplyDrop;
+    private final SupplyDropMenu supplyDropMenu;
+    private final WorldGenerator worldGenerator;
+    private final ProtectTheCoreGame protectTheCoreGame;
+    private final Cores cores;
+    private final AwakeningEvent awakeningEvent;
+    private final TeamsMenu teamsMenu;
+    private final ConfigMenu configMenu;
+    private final ElectionEvent electionEvent;
+    private final Events events;
+
+    public CommandRegistration(@NotNull ProtectTheCore plugin, @NotNull FileConfiguration config, @NotNull ComponentLogger logger, @NotNull EndShop endShop, @NotNull SupplyDrop supplyDrop, @NotNull WorldGenerator worldGenerator, @NotNull SupplyDropMenu supplyDropMenu, @NotNull ProtectTheCoreGame protectTheCoreGame, @NotNull Cores cores, @NotNull AwakeningEvent awakeningEvent, @NotNull TeamsMenu teamsMenu, @NotNull ConfigMenu configMenu, @NotNull ElectionEvent electionEvent, @NotNull Events events) {
+        this.plugin = plugin;
+        this.config = config;
+        this.logger = logger;
+        this.endShop = endShop;
+        this.supplyDrop = supplyDrop;
+        this.supplyDropMenu = supplyDropMenu;
+        this.worldGenerator = worldGenerator;
+        this.protectTheCoreGame = protectTheCoreGame;
+        this.cores = cores;
+        this.awakeningEvent = awakeningEvent;
+        this.teamsMenu = teamsMenu;
+        this.configMenu = configMenu;
+        this.electionEvent = electionEvent;
+        this.events = events;
+    }
+
+    public void registerCommand(LifecycleEventManager<@NotNull Plugin> lifecycleEventManager) {
         lifecycleEventManager.registerEventHandler(LifecycleEvents.COMMANDS, commands -> {
             LiteralCommandNode<CommandSourceStack> buildCommand = Commands.literal("protectthecore")
                     .then(opBranch("spawn_end_shop")
                             .executes(ctx -> {
                                 if (ctx.getSource().getExecutor() instanceof Player player) {
-                                    EndShop.spawnEndShop(player, new Location(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend")), -5, Objects.requireNonNull(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) - 1, -20));
+                                    endShop.spawnEndShop(player, new Location(plugin.getServer().getWorld(new NamespacedKey(plugin, "ptctheend")), -5, Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) - 1, -20));
                                 }
                                 else {
-                                    EndShop.spawnEndShop(new Location(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend")), -5, Objects.requireNonNull(Bukkit.getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) - 1, -20));
+                                    endShop.spawnEndShop(new Location(plugin.getServer().getWorld(new NamespacedKey(plugin, "ptctheend")), -5, Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey(plugin, "ptctheend"))).getHighestBlockYAt(-5, -20) - 1, -20));
                                 }
                                 return 1;
                             })
@@ -57,11 +94,11 @@ public class CommandRegistration {
                             .then(opBranch("spawn_supply_drop")
                                     .then(Commands.argument("supply_drop_id", IntegerArgumentType.integer(0))
                                             .executes(ctx -> {
-                                                if (IntegerArgumentType.getInteger(ctx, "supply_drop_id") >= SupplyDrop.getSupplyDropConfigSize()) {
+                                                if (IntegerArgumentType.getInteger(ctx, "supply_drop_id") >= supplyDrop.getSupplyDropConfigSize()) {
                                                     Objects.requireNonNull(ctx.getSource().getExecutor()).sendMessage(Component.text("Index out of range!", NamedTextColor.RED));
                                                     return -1;
                                                 }
-                                                SupplyDrop.spawnSupplyDrop(HelperFunctions.inventoryToJSONArray(SupplyDrop.getInventory(IntegerArgumentType.getInteger(ctx, "supply_drop_id"))), SupplyDrop.getLocation(IntegerArgumentType.getInteger(ctx, "supply_drop_id")), SupplyDrop.getContainer(IntegerArgumentType.getInteger(ctx, "supply_drop_id")));
+                                                supplyDrop.spawnSupplyDrop(HelperFunctions.inventoryToJSONArray(supplyDrop.getInventory(IntegerArgumentType.getInteger(ctx, "supply_drop_id"))), supplyDrop.getLocation(IntegerArgumentType.getInteger(ctx, "supply_drop_id")), supplyDrop.getContainer(IntegerArgumentType.getInteger(ctx, "supply_drop_id")));
                                                 return 1;
                                             })
                                     )
@@ -71,7 +108,6 @@ public class CommandRegistration {
                                     logger.warn(Component.text("Command can only be executed by a player!", NamedTextColor.RED));
                                     return 1;
                                 }
-                                SupplyDropMenu supplyDropMenu = new SupplyDropMenu();
                                 player.openInventory(supplyDropMenu.getInventory());
                                 return 1;
                             })
@@ -115,7 +151,7 @@ public class CommandRegistration {
                                                 int teamIdx = IntegerArgumentType.getInteger(ctx, "team_id");
                                                 String playerName = StringArgumentType.getString(ctx, "player_name");
                                                 if (ctx.getSource().getSender() instanceof Player player) {
-                                                    player.give(ProtectTheCoreGame.getCrown(teamIdx, playerName));
+                                                    player.give(protectTheCoreGame.getCrown(teamIdx, playerName));
                                                 } else {
                                                     logger.warn(Component.text("Command can only be executed by a player!", NamedTextColor.RED));
                                                 }
@@ -129,7 +165,7 @@ public class CommandRegistration {
                                     .executes(ctx -> {
                                         int teamIdx = IntegerArgumentType.getInteger(ctx, "team_id");
                                         if (ctx.getSource().getSender() instanceof Player player) {
-                                            Cores.giveCore(teamIdx, player);
+                                            cores.giveCore(teamIdx, player);
                                         } else {
                                             logger.warn(Component.text("Command can only be executed by a player!", NamedTextColor.RED));
                                         }
@@ -143,19 +179,18 @@ public class CommandRegistration {
                                     logger.warn(Component.text("Command can only be executed by a player!", NamedTextColor.RED));
                                     return 1;
                                 }
-                                TeamsMenu teamsMenu = new TeamsMenu();
                                 player.openInventory(teamsMenu.getInventory());
                                 return Command.SINGLE_SUCCESS;
                             }))
                     .then(opBranch("start")
                             .executes(ctx -> {
-                                new ProtectTheCoreGame().startGame();
+                                protectTheCoreGame.startGame();
                                 return 1;
                             })
                     )
                     .then(opBranch("stop")
                             .executes(ctx -> {
-                                new ProtectTheCoreGame().stopGame();
+                                protectTheCoreGame.stopGame();
                                 ctx.getSource().getSender().sendMessage(
                                         Component.text("Event stopped.", NamedTextColor.GREEN));
                                 return Command.SINGLE_SUCCESS;
@@ -163,7 +198,7 @@ public class CommandRegistration {
                     )
                     .then(opBranch("lower_wall")
                             .executes(ctx -> {
-                                ProtectTheCoreGame.lowerWall();
+                                protectTheCoreGame.lowerWall();
 
                                 return Command.SINGLE_SUCCESS;
                             })
@@ -174,7 +209,6 @@ public class CommandRegistration {
                                     logger.warn(Component.text("Command can only be executed by a player!", NamedTextColor.RED));
                                     return 1;
                                 }
-                                ConfigMenu configMenu = new ConfigMenu(plugin);
                                 player.openInventory(configMenu.getInventory());
                                 return Command.SINGLE_SUCCESS;
                             })
@@ -186,11 +220,11 @@ public class CommandRegistration {
                                             logger.info(Component.text("Command must be executed by a player!"));
                                             return -1;
                                         }
-                                        if (getServer().getWorld(new NamespacedKey("minecraft", "overworld")) == null) {
+                                        if (plugin.getServer().getWorld(new NamespacedKey("minecraft", "overworld")) == null) {
                                             ctx.getSource().getExecutor().sendMessage(Component.text("World 'overworld' does not exist!", NamedTextColor.YELLOW));
                                             return -1;
                                         }
-                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(getServer().getWorld(new NamespacedKey("minecraft", "overworld"))));
+                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey("minecraft", "overworld"))));
                                         return 1;
                                     })
                             )
@@ -200,11 +234,11 @@ public class CommandRegistration {
                                             logger.info(Component.text("Command must be executed by a player!"));
                                             return -1;
                                         }
-                                        if (getServer().getWorld(new NamespacedKey("minecraft", "world_nether")) == null) {
+                                        if (plugin.getServer().getWorld(new NamespacedKey("minecraft", "world_nether")) == null) {
                                             ctx.getSource().getExecutor().sendMessage(Component.text("World 'world_nether' does not exist!", NamedTextColor.YELLOW));
                                             return -1;
                                         }
-                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(getServer().getWorld(new NamespacedKey("minecraft", "world_nether"))));
+                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey("minecraft", "world_nether"))));
                                         return 1;
                                     })
                             )
@@ -214,11 +248,11 @@ public class CommandRegistration {
                                             logger.info(Component.text("Command must be executed by a player!"));
                                             return -1;
                                         }
-                                        if (getServer().getWorld(new NamespacedKey("minecraft", "world_the_end")) == null) {
+                                        if (plugin.getServer().getWorld(new NamespacedKey("minecraft", "world_the_end")) == null) {
                                             ctx.getSource().getExecutor().sendMessage(Component.text("World 'world_the_end' does not exist!", NamedTextColor.YELLOW));
                                             return -1;
                                         }
-                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(getServer().getWorld(new NamespacedKey("minecraft", "world_the_end"))));
+                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey("minecraft", "world_the_end"))));
                                         return 1;
                                     })
                             )
@@ -228,11 +262,12 @@ public class CommandRegistration {
                                             logger.info(Component.text("Command must be executed by a player!"));
                                             return -1;
                                         }
-                                        if (getServer().getWorld(new NamespacedKey(plugin, "ptcoverworld")) == null) {
-                                            ctx.getSource().getExecutor().sendMessage(Component.text("World 'ptcoverworld' does not exist! Please create it using /protectthecore generate"));
+                                        if (plugin.getServer().getWorld(new NamespacedKey(plugin, "ptcoverworld")) == null) {
+                                            ctx.getSource().getExecutor().sendMessage(Component.text("World 'ptcoverworld' does not exist! Generating it now."));
+                                            worldGenerator.createOverworld(plugin.getConfig().getInt("config.overworld.seed"), plugin.getConfig().getInt("config.overworld.border"));
                                             return -1;
                                         }
-                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(getServer().getWorld(new NamespacedKey(plugin, "ptcoverworld"))));
+                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey(plugin, "ptcoverworld"))));
                                         return 1;
                                     })
                             )
@@ -242,11 +277,12 @@ public class CommandRegistration {
                                             logger.info(Component.text("Command must be executed by a player!"));
                                             return -1;
                                         }
-                                        if (getServer().getWorld(new NamespacedKey(plugin, "ptcnether")) == null) {
-                                            ctx.getSource().getExecutor().sendMessage(Component.text("World 'ptcnether' does not exist! Please create it using /protectthecore generate"));
+                                        if (plugin.getServer().getWorld(new NamespacedKey(plugin, "ptcnether")) == null) {
+                                            ctx.getSource().getExecutor().sendMessage(Component.text("World 'ptcnether' does not exist! Generating it now."));
+                                            worldGenerator.createNether(plugin.getConfig().getInt("config.nether.seed"), plugin.getConfig().getInt("config.nether.border"));
                                             return -1;
                                         }
-                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(getServer().getWorld(new NamespacedKey(plugin, "ptcnether"))));
+                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey(plugin, "ptcnether"))));
                                         return 1;
                                     })
                             )
@@ -256,33 +292,64 @@ public class CommandRegistration {
                                             logger.info(Component.text("Command must be executed by a player!"));
                                             return -1;
                                         }
-                                        if (getServer().getWorld(new NamespacedKey(plugin, "ptctheend")) == null) {
-                                            ctx.getSource().getExecutor().sendMessage(Component.text("World 'ptctheend' does not exist! Please create it using /protectthecore generate"));
+                                        if (plugin.getServer().getWorld(new NamespacedKey(plugin, "ptctheend")) == null) {
+                                            ctx.getSource().getExecutor().sendMessage(Component.text("World 'ptctheend' does not exist! Generating it now."));
+                                            worldGenerator.createTheEnd(plugin.getConfig().getInt("config.the_end.seed"), plugin.getConfig().getInt("config.the_end.border"));
                                             return -1;
                                         }
-                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(getServer().getWorld(new NamespacedKey(plugin, "ptctheend"))));
+                                        WorldGenerator.teleportToWorld((Player) ctx.getSource().getExecutor(), Objects.requireNonNull(plugin.getServer().getWorld(new NamespacedKey(plugin, "ptctheend"))));
                                         return 1;
                                     })
                             )
                     )
                     .then(opBranch("refill")
                             .executes(ctx -> {
-                                AwakeningEvent.fillAssassinGear(Objects.requireNonNull(AwakeningEvent.getAssassin()), false);
+                                awakeningEvent.fillAssassinGear(Objects.requireNonNull(awakeningEvent.getAssassin()), false);
                                 return 1;
                             })
                             .then(Commands.argument("include_totems", BoolArgumentType.bool())
                                 .executes(ctx -> {
-                                    AwakeningEvent.fillAssassinGear(Objects.requireNonNull(AwakeningEvent.getAssassin()), BoolArgumentType.getBool(ctx, "include_totems"));
+                                    awakeningEvent.fillAssassinGear(Objects.requireNonNull(awakeningEvent.getAssassin()), BoolArgumentType.getBool(ctx, "include_totems"));
                                     return 1;
                                 })
                                 .then(Commands.argument("target", ArgumentTypes.player())
                                     .executes(ctx -> {
                                         final PlayerSelectorArgumentResolver targetResolver = ctx.getArgument("target", PlayerSelectorArgumentResolver.class);
                                         final Player target = targetResolver.resolve(ctx.getSource()).getFirst();
-                                        AwakeningEvent.fillAssassinGear(target, BoolArgumentType.getBool(ctx, "include_totems"));
+                                        awakeningEvent.fillAssassinGear(target, BoolArgumentType.getBool(ctx, "include_totems"));
                                         return Command.SINGLE_SUCCESS;
                                     }))
                             )
+                    )
+                    .then(Commands.literal("vote")
+                            .then(Commands.argument("candidate", ArgumentTypes.player())).executes(ctx -> {
+                                if (ctx.getSource().getExecutor() == null) {
+                                    logger.info(Component.text("Command must be executed by a player!"));
+                                    return -1;
+                                }
+                                if (events.getNextEvent().getString("name") == "Election") {
+                                    ctx.getSource().getExecutor().sendMessage(MiniMessage.miniMessage().deserialize("<red>You do not have permission to execute this command!"));
+                                    return -1;
+                                }
+                                electionEvent.putVote(ctx.getSource().getExecutor().getName(), ctx.getArgument("candidate", PlayerSelectorArgumentResolver.class).resolve(ctx.getSource()).getFirst().getName());
+                                return Command.SINGLE_SUCCESS;
+                            }))
+                    .then(opBranch("debug")
+                            .executes(ctx -> {
+                                if (ctx.getSource().getExecutor() == null) {
+                                    logger.info(Component.text("Command must be executed by a player!"));
+                                    return -1;
+                                }
+                                Player player = (Player) ctx.getSource().getExecutor();
+                                if (player.getPersistentDataContainer().has(new NamespacedKey(plugin, "debug_mode"))) {
+                                    player.getPersistentDataContainer().set(new NamespacedKey(plugin, "debug_mode"), PersistentDataType.BOOLEAN, !player.getPersistentDataContainer().get(new NamespacedKey(plugin, "debug_mode"), PersistentDataType.BOOLEAN));
+                                }
+                                else {
+                                    player.getPersistentDataContainer().set(new NamespacedKey(plugin, "debug_mode"), PersistentDataType.BOOLEAN, true);
+                                }
+                                player.sendMessage(MiniMessage.miniMessage().deserialize("<white>Debug mode has been set to <bold>" + (player.getPersistentDataContainer().get(new NamespacedKey(plugin, "debug_mode"), PersistentDataType.BOOLEAN) ? "<green>TRUE" : "<red>FALSE") + "<bold:false><white>."));
+                                return Command.SINGLE_SUCCESS;
+                            })
                     )
                     .build();
             commands.registrar().register(buildCommand, "Commands for the Protect The Core event.", List.of("ptc"));

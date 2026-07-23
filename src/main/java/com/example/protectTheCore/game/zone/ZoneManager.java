@@ -1,15 +1,23 @@
 package com.example.protectTheCore.game.zone;
 
+import com.example.protectTheCore.ProtectTheCore;
 import com.example.protectTheCore.core.Teams;
 import com.example.protectTheCore.game.wall.WallManager;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ZoneManager {
+
+    private final ProtectTheCore plugin;
+
+    public ZoneManager(@NotNull ProtectTheCore plugin) {
+        this.plugin = plugin;
+    }
 
     public record Zone(int teamIndex, double minX, double minZ, double maxX, double maxZ) {
         public boolean contains(double x, double z) {
@@ -49,7 +57,7 @@ public class ZoneManager {
 
     public Zone getHomeZone(String playerName) throws IOException {
         if (!enabled) return null;
-        int teamIdx = Teams.getTeamIndexFromPlayer(playerName);
+        int teamIdx = plugin.getTeams().getTeamIndexFromPlayer(playerName);
         if (teamIdx < 0) return null;
         for (Zone z : zones) {
             if (z.teamIndex() == teamIdx) return z;
@@ -63,9 +71,9 @@ public class ZoneManager {
                 double cx = (z.minX() + z.maxX()) / 2.0;
                 double cz = (z.minZ() + z.maxZ()) / 2.0;
                 if (cx <= -15000000) cx = z.maxX() - 150.0;
-                if (cx >=  15000000) cx = z.minX() + 150.0;
+                if (cx >= 15000000) cx = z.minX() + 150.0;
                 if (cz <= -15000000) cz = z.maxZ() - 150.0;
-                if (cz >=  15000000) cz = z.minZ() + 150.0;
+                if (cz >= 15000000) cz = z.minZ() + 150.0;
                 cx = Math.max(z.minX() + 2.0, Math.min(cx, z.maxX() - 2.0));
                 cz = Math.max(z.minZ() + 2.0, Math.min(cz, z.maxZ() - 2.0));
                 double cy = world.getHighestBlockYAt((int) cx, (int) cz) + 1.0;

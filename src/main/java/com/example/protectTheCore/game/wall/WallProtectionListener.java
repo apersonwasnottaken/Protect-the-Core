@@ -1,5 +1,7 @@
 package com.example.protectTheCore.game.wall;
 
+import com.example.protectTheCore.ProtectTheCore;
+import com.example.protectTheCore.helper.HelperFunctions;
 import io.papermc.paper.event.packet.PlayerChunkLoadEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -49,7 +51,7 @@ public class WallProtectionListener implements Listener {
     private final WallManager wallManager;
     private final Plugin plugin;
 
-    public WallProtectionListener(WallManager wallManager, Plugin plugin) {
+    public WallProtectionListener(@NotNull ProtectTheCore plugin, @NotNull WallManager wallManager) {
         this.wallManager = wallManager;
         this.plugin = plugin;
         startEntityTickLoop();
@@ -324,6 +326,7 @@ public class WallProtectionListener implements Listener {
                     ClientboundLevelChunkWithLightPacket pkt = getClientboundLevelChunkWithLightPacket();
                     nmsPlayer.connection.send(pkt);
                 } catch (Exception e) {
+                    HelperFunctions.sendErrorMessage(player, e);
                     plugin.getLogger().warning("[WallManager] sendWallChunkToPlayer failed for "
                             + player.getName() + " at " + cx + "," + cz + ": " + e.getMessage());
                 }

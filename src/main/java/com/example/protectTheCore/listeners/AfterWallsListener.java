@@ -1,55 +1,53 @@
 package com.example.protectTheCore.listeners;
 
 import com.example.protectTheCore.core.Teams;
+import com.example.protectTheCore.helper.PluginData;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.persistence.PersistentDataType;
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-
 public class AfterWallsListener implements Listener {
-    private ArrayList<Integer> destroyedCores = new ArrayList<>();
+    private JSONArray destroyedCores = new JSONArray();
+    private Teams teams;
+    private PluginData pluginData;
 
-    public void addToDestroyedCores(int team) {
-        destroyedCores.add(team);
+    public AfterWallsListener(@NotNull Teams teams, @NotNull PluginData pluginData) {
+        this.teams = teams;
+        this.pluginData = pluginData;
     }
 
-    public ArrayList<Integer> getDestroyedCores() {
+    public void addToDestroyedCores(int team) {
+        destroyedCores.put(team);
+    }
+
+    public JSONArray getDestroyedCores() {
         return destroyedCores;
     }
 
     public void saveDestroyedCores() {
-        try {
-            Files.writeString(Path.of("./plugins/ProtectTheCore/destroyed_cores.txt"), destroyedCores.toString());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        pluginData.putEntry("destroyed_cores", destroyedCores);
     }
 
     public void parseDestroyedCores() {
         destroyedCores.clear();
         try {
-            Files.createFile(Path.of("./plugins/ProtectTheCore/destroyed_cores.json"));
-            destroyedCores = Arrays.stream(Files.readString(Path.of("./plugins/ProtectTheCore/destroyed_cores.json")).substring(1, Files.readString(Path.of("./plugins/ProtectTheCore/destroyed_cores.json")).length() - 2).split(",")).map(Integer::parseInt).collect(Collectors.toCollection(ArrayList::new));
+            destroyedCores = (JSONArray) pluginData.getEntry("destroyed_cores");
         } catch (Exception e) {
             // throw new RuntimeException(e);
         }
@@ -58,7 +56,7 @@ public class AfterWallsListener implements Listener {
     public boolean isCoreDestroyed(int team) {
         if (destroyedCores == null) return false;
         if (destroyedCores.isEmpty()) return false;
-        return destroyedCores.contains(team);
+        return destroyedCores.toList().contains(team);
     }
 
     public void teamCoreDestroyed(int team) {
@@ -69,7 +67,7 @@ public class AfterWallsListener implements Listener {
     @EventHandler
     public void onFatalDamage(EntityDeathEvent event) throws IOException {
         if (event.getEntity() instanceof Player player) {
-            if (player.getWorld().getName().equals("ptcoverworld") && isCoreDestroyed(Teams.getTeamIndexFromPlayer(player.getName()))) {
+            if (player.getWorld().getName().equals("ptcoverworld") && isCoreDestroyed(teams.getTeamIndexFromPlayer(player.getName()))) {
                 event.setCancelled(true);
                 Bukkit.broadcast(MiniMessage.miniMessage().deserialize("<italic:false><yellow>" + player.getName() + " has died!"));
                 player.setGameMode(GameMode.SPECTATOR);

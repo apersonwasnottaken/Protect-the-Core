@@ -1,21 +1,28 @@
 package com.example.protectTheCore.listeners;
 
 import com.example.protectTheCore.ProtectTheCore;
+import com.example.protectTheCore.game.wall.WallManager;
 import com.example.protectTheCore.game.zone.ZoneManager;
+import com.example.protectTheCore.helper.HelperFunctions;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerRespawnEvent;
-
-import java.io.IOException;
-
-import static com.example.protectTheCore.ProtectTheCore.plugin;
-import static com.example.protectTheCore.ProtectTheCore.zoneManager;
+import org.jetbrains.annotations.NotNull;
 
 public class DeathInterceptorListener implements Listener {
 
     private volatile World defaultWorld;
+    private final ProtectTheCore plugin;
+    private final ZoneManager zoneManager;
+    private final WallManager wallManager;
+
+    public DeathInterceptorListener(@NotNull ProtectTheCore plugin, @NotNull WallManager wallManager, @NotNull ZoneManager zoneManager) {
+        this.plugin = plugin;
+        this.zoneManager = zoneManager;
+        this.wallManager = wallManager;
+    }
 
     public void setDefaultWorld(World world) {
         this.defaultWorld = world;
@@ -37,13 +44,16 @@ public class DeathInterceptorListener implements Listener {
         try {
             ZoneManager.Zone homeZone = zoneManager.getHomeZone(event.getPlayer().getName());
             if (homeZone != null) {
-                Location spawnLoc = zoneManager.getTeamSpawn(homeZone.teamIndex(), defaultWorld, ProtectTheCore.wallManager);
+                Location spawnLoc = zoneManager.getTeamSpawn(homeZone.teamIndex(), defaultWorld, wallManager);
                 if (spawnLoc != null) {
                     event.setRespawnLocation(spawnLoc);
                     return;
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
+            if (HelperFunctions.getDebugMode(event.getPlayer())) {
+                HelperFunctions.sendErrorMessage(event.getPlayer(), e);
+            }
             throw new RuntimeException(e);
         }
         event.setRespawnLocation(defaultWorld.getSpawnLocation());
