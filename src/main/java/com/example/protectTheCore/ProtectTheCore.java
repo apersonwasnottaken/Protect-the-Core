@@ -97,7 +97,7 @@ public final class ProtectTheCore extends JavaPlugin {
     public void onEnable() {
         this.pluginData = new PluginData(this);
         this.zoneManager = new ZoneManager(this);
-        this.teams = new Teams(this, getComponentLogger());
+        this.teams = new Teams(this, getComponentLogger(), pluginData);
         this.events = new Events(pluginData);
         this.signInputManager = new SignInputManager(this);
         this.awakeningEvent = new AwakeningEvent(this);
